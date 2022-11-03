@@ -1,0 +1,91 @@
+### AUTHOR: AHz
+### LAST EDIT: 2022-11-02
+### WRITTEN IN: R version 4.0.5
+### Purpose: TBT Explorer dashboard
+
+
+dashboardPage(
+  
+  # Application title
+  dashboardHeader(title = "TBT Explorer"),
+  
+  
+  
+  # Sidebar with a slider input for number of bins
+  dashboardSidebar(
+    pickerInput("date_select", "Select Date", 
+                choices = c("Date Range" = "dates", 
+                            "Sampling Day 1" = "day1"
+                ),
+                selected = "day1", 
+                options = list(`actions-box` = TRUE,
+                               title = "Select"),
+                multiple = FALSE),
+    sidebarMenu(menuItem("Dashboard", tabName = "dashboard", icon = icon("thumb-tack"))),
+    sidebarMenu(menuItem("Metrics", tabname = "metrics", icon = icon("area-chart"), startExpanded = TRUE,
+                         menuSubItem("Temperature",
+                                     tabName = "temp"),
+                         menuSubItem("Humidity",
+                                     tabName = "humidity"),
+                         menuSubItem("CO2",
+                                     tabName = "co2"),
+                         menuSubItem("PM",
+                                     tabName = "pm"))
+                ),
+    sidebarMenu(menuItem("Source code", 
+                         icon = icon("github"), 
+                         href = "https://github.com/amandabhernandez/tinybeerteam"))
+    
+  ),
+  
+  # Show a plot of the generated distribution
+  dashboardBody(
+    tabItems(
+      tabItem(tabName = "dashboard",
+              fluidRow(h3(" Time Series Graphs"), 
+                       uiOutput("metric"),
+                       #uiOutput("roavg"),
+                       plotlyOutput("airplot"))
+      ),
+      tabItem(tabName = "temp",
+              fluidRow(box(title = "Time Series Graph",
+                           plotlyOutput("tempplot"), width = 12, status = "primary", 
+                           solidHeader = TRUE),
+                       box(width = 6, status = "info", 
+                           solidHeader = TRUE, 
+                           title = "Distribution of temperature measurements", 
+                           plotlyOutput("temp_density")),
+                       )),
+      tabItem(tabName = "humidity",
+              fluidRow(box(title = "Time Series Graph",
+                           plotlyOutput("humplot"), width = 12, status = "primary", 
+                           solidHeader = TRUE),
+                       box(width = 6, status = "info", 
+                           solidHeader = TRUE, 
+                           title = "Distribution of humidity measurements", 
+                           plotlyOutput("hum_density")),
+                       )),
+      tabItem(tabName = "co2",
+              fluidRow(box(title = "Time Series Graph",
+                           plotlyOutput("co2plot"), width = 12, status = "primary", 
+                           solidHeader = TRUE),
+                       box(width = 6, status = "info", 
+                           solidHeader = TRUE, 
+                           title = "Distribution of CO2 measurements", 
+                           plotlyOutput("co2_density")),
+                       )),
+      tabItem(tabName = "pm",
+              fluidRow(box(title = "Time Series Graph",
+                           plotlyOutput("pmplot"), width = 12, status = "primary", 
+                           solidHeader = TRUE),
+                       box(width = 6, status = "info", 
+                           solidHeader = TRUE, 
+                           title = "Distribution of PM measurements", 
+                           plotlyOutput("pm_density")),
+                       ))
+
+                       ))
+
+  
+)
+
