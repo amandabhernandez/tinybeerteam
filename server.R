@@ -24,7 +24,7 @@ shinyServer(function(input, output) {
         ggthemes::theme_pander() +
         xlab("Date")+
         ylab("Concentration") +
-        theme(legend.position = "none",
+        theme(#legend.position = "none",
               panel.grid.major.y = element_blank(),
               panel.grid.major.x = element_line(color = "snow2"),
               strip.text.x = element_text(color = "black", face = "bold"),

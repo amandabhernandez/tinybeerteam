@@ -14,7 +14,7 @@ dashboardPage(
   # Sidebar with a slider input for number of bins
   dashboardSidebar(
     pickerInput("date_select", "Select Date", 
-                choices = c("Date Range" = "dates", 
+                choices = c( #"Date Range" = "dates", 
                             "Sampling Day 1" = "day1"
                 ),
                 selected = "day1", 

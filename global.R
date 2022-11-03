@@ -48,13 +48,16 @@ clean_hobo_dat <- function(dat){
 
 clean_sp <- function(dat){
   dat %>% 
-    mutate(Time = hms(str_extract(as.character(Time), "\\d*:\\d*:\\d*")), 
-           Date = ymd(str_remove_all(as.character(Date), "\\d*:\\d*:\\d*")), 
+    mutate(#Time = hms(str_extract(as.character(Time), "\\d*:\\d*:\\d*")), 
+           Date = mdy(Date),
+           Time = hms(Time),
+           #Date = ymd(str_remove_all(as.character(Date), "\\d*:\\d*:\\d*")), 
            date_time = ymd_hms(paste0(Date, " ", Time)),
            month = month(date_time),
            day = day(date_time),
            hour = hour(date_time),
-           minute = minute(date_time))%>% 
+           minute = minute(date_time),
+           Aerosol = as.numeric(Aerosol))%>% 
     rename(Result = Aerosol,
            date = Date, 
            time = Time)
@@ -88,54 +91,86 @@ clean_sp <- function(dat){
 keep_cols <- c("date_time", "date", "time", "month", "day", 
                "hour", "minute", "metric", "Result", "location")
 
-pm10 <- readxl::read_xlsx("data/EH263_MP1_exposure_data.xlsx", col_names = TRUE, 
-                        sheet = 2, col_types = c("date", "date", "numeric"))[-1,] %>% 
+pm10_tap <- read_csv("data/sp_tap_pm10_2022-11-03.csv", skip = 28)[-1,] %>% 
   clean_sp() %>% 
   mutate(metric = "PM10",
-         location = "Brew Pit") 
+         location = "Tap Room") 
 
 
 
-pm2.5 <- readxl::read_xlsx("data/EH263_MP1_exposure_data.xlsx", col_names = TRUE, 
-                                   sheet = 3, col_types = c("date", "date", "numeric"))[-1,] %>% 
+pm2.5_tap <- read_csv("data/sp_tap_pm2.5_2022-11-03.csv", skip = 28)[-1,] %>% 
   mutate(metric = "PM2.5",
          location = "Tap Room") %>% 
   clean_sp()
 
-day1_pm <- bind_rows(pm10, pm2.5)
+pm10_bp <- read_csv("data/sp_bp_pm10_2022-11-03.csv", skip = 29)[-1,] %>%
+  mutate(#Time = hms(str_extract(as.character(Time), "\\d*:\\d*:\\d*")), 
+    Date = mdy(Date),
+    Time = hms(Time),
+    #Date = ymd(str_remove_all(as.character(Date), "\\d*:\\d*:\\d*")), 
+    date_time = ymd_hms(paste0(Date, " ", Time)),
+    month = month(date_time),
+    day = day(date_time),
+    hour = hour(date_time),
+    minute = minute(date_time),
+    MC = as.numeric(MC))%>% 
+  rename(Result = MC,
+         date = Date, 
+         time = Time) %>% 
+  mutate(metric = "PM10",
+         location = "Brew Pit")
+
+pm2.5_bp <- read_csv("data/sp_bp_pm25_2022-11-03.csv", skip = 29)[-1,] %>%
+  mutate(#Time = hms(str_extract(as.character(Time), "\\d*:\\d*:\\d*")), 
+    Date = mdy(Date),
+    Time = hms(Time),
+    #Date = ymd(str_remove_all(as.character(Date), "\\d*:\\d*:\\d*")), 
+    date_time = ymd_hms(paste0(Date, " ", Time)),
+    month = month(date_time),
+    day = day(date_time),
+    hour = hour(date_time),
+    minute = minute(date_time),
+    MC = as.numeric(MC))%>% 
+  rename(Result = MC,
+         date = Date, 
+         time = Time) %>% 
+  mutate(metric = "PM2.5",
+         location = "Brew Pit")
 
 
-co2 <- read_csv("data/hobo_co2_class_2022-11-01.csv") %>% 
+day1_pm <- bind_rows(pm10_tap, pm2.5_tap, pm10_bp, pm2.5_bp)
+
+
+co2 <- read_csv("data/hobo_co2_bp_2022-11-03.csv", skip = 1) %>%
   clean_names() %>% 
-  rename_all(~str_remove_all(., "_414a")) %>% 
-  rename_all(~str_remove_all(., "ch_\\d_")) %>% 
-  rename_with(~"date_time", contains("date_time"))  %>% 
+  rename_all(~str_remove_all(., "_lgr.*")) %>% 
+  rename_with(~"date_time", contains("date_time")) %>% 
   select(date_time:co2_ppm) %>% 
   mutate(date_time = mdy_hms(date_time),
-         date = ymd(str_remove_all(as.character(date_time), "\\d*:\\d*:\\d*")), 
+         date = ymd(str_remove_all(as.character(date_time), "\\d*:\\d*:\\d*")),
          time = hms(str_extract(as.character(date_time), "\\d*:\\d*:\\d*")),
          month = month(date_time),
          day = day(date_time),
          hour = hour(date_time),
-         minute = minute(date_time)) %>% 
-  pivot_longer(names_to = "metric", values_to = "Result", temp_f:co2_ppm) %>% 
-  filter(metric == "co2_ppm") %>% 
+         minute = minute(date_time)) %>%
+  pivot_longer(names_to = "metric", values_to = "Result", temp_f:co2_ppm) %>%
+  filter(metric == "co2_ppm") %>%
   mutate(metric = factor(metric, levels = c("co2_ppm"),
                          labels = c("CO2 (ppm)")),
          location = "Brew Pit")
 
-hobo04 <- read_csv("data/EH263-H11.csv", skip = 1) %>% 
+
+hobo04 <- read_csv("data/hobo_tap_2022-11-03.csv", skip = 1) %>% 
   clean_hobo_dat()%>% 
-  filter(date_time > mdy_hms("10-11-22 06:40:00") & date_time < mdy_hms("10-11-22 12:00:00")) %>% 
+  filter(date_time > mdy_hms("11-03-22 09:00:00"))  %>%  
   mutate(location = "Tap Room")
   
-hobo15 <- read_csv("data/EH263-H17.csv", skip = 1) %>%  
-  clean_hobo_dat() %>% 
-  filter(date_time > mdy_hms("10-11-22 06:40:00") & date_time < mdy_hms("10-11-22 12:00:00")) %>% 
+hobo15 <- read_csv("data/hobo_bp_2022-11-03.csv", skip = 1) %>%
+  clean_hobo_dat() %>%
   mutate(location = "Brew Pit")
 
 
-day1_hobo_dat <- bind_rows(hobo04, hobo15)
+day1_hobo_dat <- bind_rows(hobo04,hobo15)
 
 
 all_dat <- bind_rows(day1_pm, day1_hobo_dat[, keep_cols], co2[, keep_cols])
@@ -178,8 +213,8 @@ time_subplot <- function(ggdat, facet){
   # 
   sub_box <- ggplot(sub_dat) + 
     geom_boxplot(aes(x = location, y = Result, fill = location)) + 
-    viridis::scale_color_viridis(discrete = TRUE, end = 0.75) +
     ggthemes::theme_pander() +
+    viridis::scale_fill_viridis(discrete = TRUE, end = 0.75) +
     theme(legend.position = "none",
           panel.grid.major.y = element_blank(),
           panel.grid.major.x = element_line(color = "snow2"), 
@@ -190,6 +225,7 @@ time_subplot <- function(ggdat, facet){
   subplot(list(sub_plotly, sub_box_ly), widths = c(.9, .1), 
           nrows = 1, shareY = TRUE, margin = 0)
 }
+
 
 dens_plotly <- function(ggdat, facet){
   dens_dat <- ggdat %>% 
