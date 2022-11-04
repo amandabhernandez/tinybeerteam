@@ -40,37 +40,37 @@ shinyServer(function(input, output) {
   
   #temperature page 
   output$tempplot <- renderPlotly({
-    time_subplot(day1_hobo_dat%>% 
+    time_subplot(all_dat%>% 
                    filter(metric == "Temperature (F)"), "Temperature (F)")
     
     
   })
   output$temp_density <- renderPlotly({
-    dens_plotly(day1_hobo_dat%>% 
+    dens_plotly(all_dat%>% 
                   filter(metric == "Temperature (F)"), "Temperature (F)")
   })
   
   
   #humidity page 
   output$humplot <- renderPlotly({
-    time_subplot(day1_hobo_dat%>% 
+    time_subplot(all_dat%>% 
                    filter(metric == "Relative Humidity (%)"), "Relative Humidity (%)")
     
   })
   output$hum_density <- renderPlotly({
-    dens_plotly(day1_hobo_dat %>% 
+    dens_plotly(all_dat %>% 
                   filter(metric == "Relative Humidity (%)"), "Relative Humidity (%)")
   })
   
   
   #CO2 page 
   output$co2plot <- renderPlotly({
-    time_subplot(co2, "CO2 (ppm)")
+    time_subplot(all_dat %>% filter(metric == "CO2 (ppm)"), "CO2 (ppm)")
     
     
   })
   output$co2_density <- renderPlotly({
-    dens_plotly(co2, "CO2 (ppm)")
+    dens_plotly(all_dat %>% filter(metric == "CO2 (ppm)"), "CO2 (ppm)")
     
   })
   
@@ -81,7 +81,7 @@ shinyServer(function(input, output) {
     
     
     
-    sep_pm_plot <- ggplot(day1_pm) +
+    sep_pm_plot <- ggplot(all_dat %>% filter(str_detect(metric, "PM"))) +
       geom_line(aes(x = date_time, y = Result ,
                     color = location,
                     label = time,
@@ -89,7 +89,7 @@ shinyServer(function(input, output) {
       viridis::scale_color_viridis(discrete = TRUE, end = 0.75) +   
       facet_wrap(~metric, ncol = 1, scales = "free_y") +
       ggthemes::theme_pander() +
-      xlab("Date")+
+      xlab("Time")+
       ylab("Concentration (ppm)") +
       theme(legend.position = "none",
             panel.grid.major.y = element_blank(),
@@ -102,7 +102,7 @@ shinyServer(function(input, output) {
     sep_pm_plotly <- ggplotly(sep_pm_plot, 
                               tooltip = c("y", "label", "label2"))
     
-    sep_pm_box <-  ggplot(day1_pm) + 
+    sep_pm_box <-  ggplot(all_dat %>% filter(str_detect(metric, "PM"))) + 
       geom_boxplot(aes(x = location, y = Result, fill = location)) + 
       viridis::scale_color_viridis(discrete = TRUE, end = 0.75) +   
       facet_wrap(~metric, ncol = 1) + 
@@ -122,7 +122,7 @@ shinyServer(function(input, output) {
     
   })
   output$pm_density <- renderPlotly({
-    dens_plotly(day1_pm, c("PM2.5", "PM10"))
+    dens_plotly(all_dat %>% filter(str_detect(metric, "PM")), c("PM2.5", "PM10"))
     
   })
   
