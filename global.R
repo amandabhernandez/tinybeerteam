@@ -20,7 +20,15 @@ options(
   # specify auth tokens should be stored in a hidden directory ".secrets"
   gargle_oauth_cache = ".secrets"
 )
+# googledrive::drive_auth()
+# googlesheets4::gs4_auth()
 
+
+# # Check that the non-interactive authentication works by first deauthorizing:
+# gs4_deauth()
+# 
+# # Authenticate using token. If no browser opens, the authentication works.
+# gs4_auth(cache = ".secrets", email = "amandabhernandez@gmail.com")
 
 library(shiny)
 library(shinythemes)
@@ -91,8 +99,22 @@ clean_sp <- function(dat){
            time = Time)
 }
 
+avg_to_1min <- function(dat){
+  dat %>% 
+    mutate(date_time = format(date_time,format='%Y-%m-%d %H:%M')) %>% 
+    group_by(location, metric, date, date_time) %>% 
+    summarize(Result = mean(Result)) %>% 
+    mutate(date_time = ymd_hm(date_time),
+           time = hms(str_extract(as.character(date_time), "\\d*:\\d*:\\d*")), 
+           month = month(date_time),
+           day = day(date_time),
+           hour = hour(date_time),
+           minute = minute(date_time))
+}
 
-##### PULL IN HOBO DATA #########
+
+
+##### PULL IN DATA FROM GOOGLE DRIVE #########
 
 keep_cols <- c("date_time", "date", "time", "month", "day", 
                "hour", "minute", "metric", "Result")
@@ -105,9 +127,7 @@ data_files_list <- list()
 for (i in seq(1:length(tbt_data_files$id))){
 
   file_link <- tbt_data_files$drive_resource[[i]]$webViewLink
-  file_id <- tbt_data_files$id
   file_name <- tbt_data_files$name[i]
-
 
   if(str_detect(file_name, "hobo_co2")){
     tbt_dat <- drive_read_string(file_link) %>% 
@@ -125,7 +145,6 @@ for (i in seq(1:length(tbt_data_files$id))){
     
     tbt_dat <- tbt_dat[-1,] %>% 
       clean_sp()
-    
   }
   if(str_detect(file_name, "sp_bp")){
     tbt_dat <- drive_read_string(file_link) %>% 
@@ -137,7 +156,6 @@ for (i in seq(1:length(tbt_data_files$id))){
 
   data_files_list[[file_name]] <- tbt_dat %>% 
     select(keep_cols)
-
 }
 
 all_dat <- bind_rows(data_files_list, .id = "file_name") %>% 
@@ -145,103 +163,40 @@ all_dat <- bind_rows(data_files_list, .id = "file_name") %>%
                               str_detect(file_name, "tap") ~ "Tap Room"),
          metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (ppm)",
                             str_detect(file_name, "pm10") ~ "PM10 (ppm)",
-                            TRUE ~ metric))
+                            TRUE ~ metric)) 
 
 
-### LOCAL TEST DATA #### 
 
-# 
-# pm10_tap <- read_csv("data/sp_tap_pm10_2022-11-03.csv", skip = 28)[-1,] %>% 
-#   clean_sp() %>% 
-#   mutate(metric = "PM10",
-#          location = "Tap Room") 
-# 
-# 
-# 
-# pm2.5_tap <- read_csv("data/sp_tap_pm2.5_2022-11-03.csv", skip = 28)[-1,] %>% 
-#   mutate(metric = "PM2.5",
-#          location = "Tap Room") %>% 
-#   clean_sp()
-# 
-# pm10_bp <- read_csv("data/sp_bp_pm10_2022-11-03.csv", skip = 29)[-1,] %>%
-#   mutate(#Time = hms(str_extract(as.character(Time), "\\d*:\\d*:\\d*")), 
-#     Date = mdy(Date),
-#     Time = hms(Time),
-#     #Date = ymd(str_remove_all(as.character(Date), "\\d*:\\d*:\\d*")), 
-#     date_time = ymd_hms(paste0(Date, " ", Time)),
-#     month = month(date_time),
-#     day = day(date_time),
-#     hour = hour(date_time),
-#     minute = minute(date_time),
-#     MC = as.numeric(MC))%>% 
-#   rename(Result = MC,
-#          date = Date, 
-#          time = Time) %>% 
-#   mutate(metric = "PM10",
-#          location = "Brew Pit")
-# 
-# pm2.5_bp <- read_csv("data/sp_bp_pm25_2022-11-03.csv", skip = 29)[-1,] %>%
-#   mutate(#Time = hms(str_extract(as.character(Time), "\\d*:\\d*:\\d*")), 
-#     Date = mdy(Date),
-#     Time = hms(Time),
-#     #Date = ymd(str_remove_all(as.character(Date), "\\d*:\\d*:\\d*")), 
-#     date_time = ymd_hms(paste0(Date, " ", Time)),
-#     month = month(date_time),
-#     day = day(date_time),
-#     hour = hour(date_time),
-#     minute = minute(date_time),
-#     MC = as.numeric(MC))%>% 
-#   rename(Result = MC,
-#          date = Date, 
-#          time = Time) %>% 
-#   mutate(metric = "PM2.5",
-#          location = "Brew Pit")
-# 
-# 
-# day1_pm <- bind_rows(pm10_tap, pm2.5_tap, pm10_bp, pm2.5_bp)
-# 
-# 
-# co2 <- read_csv("data/hobo_co2_bp_2022-11-03.csv", skip = 1) %>%
-#   clean_names() %>% 
-#   rename_all(~str_remove_all(., "_lgr.*")) %>% 
-#   rename_with(~"date_time", contains("date_time")) %>% 
-#   select(date_time:co2_ppm) %>% 
-#   mutate(date_time = mdy_hms(date_time),
-#          date = ymd(str_remove_all(as.character(date_time), "\\d*:\\d*:\\d*")),
-#          time = hms(str_extract(as.character(date_time), "\\d*:\\d*:\\d*")),
-#          month = month(date_time),
-#          day = day(date_time),
-#          hour = hour(date_time),
-#          minute = minute(date_time)) %>%
-#   pivot_longer(names_to = "metric", values_to = "Result", temp_f:co2_ppm) %>%
-#   filter(metric == "co2_ppm") %>%
-#   mutate(metric = factor(metric, levels = c("co2_ppm"),
-#                          labels = c("CO2 (ppm)")),
-#          location = "Brew Pit")
-# 
-# 
-# hobo04 <- read_csv("data/hobo_tap_2022-11-03.csv", skip = 1) %>% 
-#   clean_hobo_dat()%>% 
-#   filter(date_time > mdy_hms("11-03-22 09:00:00"))  %>%  
-#   mutate(location = "Tap Room")
-#   
-# hobo15 <- read_csv("data/hobo_bp_2022-11-03.csv", skip = 1) %>%
-#   clean_hobo_dat() %>%
-#   mutate(location = "Brew Pit")
-# 
-# 
-# day1_hobo_dat <- bind_rows(hobo04,hobo15)
-# 
-# 
-# all_dat <- bind_rows(day1_pm, day1_hobo_dat[, keep_cols], co2[, keep_cols])
-# 
+all_dat_day1avg <- all_dat %>% 
+  filter(!(date == "2022-11-03" & str_detect(metric, "PM"))) %>% 
+  filter(!str_detect(file_name, "hobo_tap_2022-11-08.csv")) %>% 
+  filter(!str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
+  bind_rows(all_dat %>% 
+              filter(date == "2022-11-03") %>% 
+              filter(str_detect(metric, "PM")) %>% 
+              avg_to_1min()) %>% 
+  bind_rows(all_dat %>% 
+              filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
+              avg_to_1min())  %>% 
+  filter(date_time %within% interval(ymd_hms("2022-11-03 09:15:00"), ymd_hms("2022-11-03 15:15:00")) |
+           date_time  %within% interval(ymd_hms("2022-11-08 06:40:00"), ymd_hms("2022-11-08 12:15:00")) |
+           date ==  as_date(now())) #%>% 
+  #mutate(Result = format(Result, scientific = FALSE, big.mark = ","))
+
 
 
 ###############################################################################
 # 2. APP/PLOT FUNCTIONS  #########################################
 ###############################################################################
 
-
+sample_dates <- ""
+#list of dates
+for(i in seq_along(1:length(unique(all_dat_day1avg$date)))){
+  sample_dates[i] <- paste0("Day ",i, ": ",rev(unique(all_dat_day1avg$date))[i])
+}
+  
+  
+  
 
 ### FOR APP
 time_subplot <- function(ggdat, facet){
@@ -268,9 +223,6 @@ time_subplot <- function(ggdat, facet){
   sub_plotly <- ggplotly(sub_plot,
                          toolftip = c("y", "label", "label2"))
   
-  # sub_violin_ly <- chronicle::make_violin(sub_dat, value = 'Result', 
-  #                                         plot_palette = "#ec7f78")
-  # 
   sub_box <- ggplot(sub_dat) + 
     geom_boxplot(aes(x = location, y = Result, fill = location)) + 
     ggthemes::theme_pander() +
@@ -297,7 +249,7 @@ dens_plotly <- function(ggdat, facet){
                    fill = "white",
                    bins = 30) +
     geom_density(fill = "red", alpha = 0.25) + 
-    facet_wrap(~metric) + 
+    facet_grid(location~metric) + 
     ggthemes::theme_pander() +
     theme(panel.grid.major.y = element_blank(),
           panel.grid.major.x = element_line(color = "snow2"),

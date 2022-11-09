@@ -11,16 +11,12 @@ dashboardPage(
   
   
   
+  
+  
   # Sidebar with a slider input for number of bins
   dashboardSidebar(
-    pickerInput("date_select", "Select Date", 
-                choices = c( #"Date Range" = "dates", 
-                            "Sampling Day 1" = "day1"
-                ),
-                selected = "day1", 
-                options = list(`actions-box` = TRUE,
-                               title = "Select"),
-                multiple = FALSE),
+    uiOutput("date_select"), 
+
     sidebarMenu(menuItem("Dashboard", tabName = "dashboard", icon = icon("thumb-tack"))),
     sidebarMenu(menuItem("Metrics", tabname = "metrics", icon = icon("area-chart"), startExpanded = TRUE,
                          menuSubItem("Temperature",
@@ -40,6 +36,7 @@ dashboardPage(
   
   # Show a plot of the generated distribution
   dashboardBody(
+    tags$head(includeHTML(("google-analytics.html"))),
     tabItems(
       tabItem(tabName = "dashboard",
               fluidRow(h3(" Time Series Graphs"), 
