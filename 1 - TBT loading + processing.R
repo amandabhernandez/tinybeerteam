@@ -97,86 +97,87 @@ avg_to_1min <- function(dat){
 
 
 ##### PULL IN DATA FROM GOOGLE DRIVE #########
+# 
+# keep_cols <- c("date_time", "date", "time", "month", "day", 
+#                "hour", "minute", "metric", "Result")
+# 
+# tbt_data_files <- drive_ls(path = "https://drive.google.com/drive/folders/1c61caoNIFOnZfeCkFZ479jEYATyj66C5") %>% 
+#   filter(str_detect(name, "\\d{4}-\\d{2}-\\d{2}"))
+# 
+# data_files_list <- list()
+# 
+# for (i in seq(1:length(tbt_data_files$id))){
+#   
+#   file_link <- tbt_data_files$drive_resource[[i]]$webViewLink
+#   file_name <- tbt_data_files$name[i]
+#   
+#   if(str_detect(file_name, "hobo_co2")){
+#     tbt_dat <- drive_read_string(file_link) %>% 
+#       read.csv(text = ., skip = 1) %>% 
+#       clean_hobo_co2()
+#   }
+#   if(str_detect(file_name, "hobo_(?!co2)")){
+#     tbt_dat <- drive_read_string(file_link) %>% 
+#       read.csv(text = ., skip = 1) %>% 
+#       clean_hobo_dat()
+#   }
+#   if(str_detect(file_name, "sp_tap")){
+#     tbt_dat <- drive_read_string(file_link) %>% 
+#       read_csv(.,skip = 28) 
+#     
+#     tbt_dat <- tbt_dat[-1,] %>% 
+#       clean_sp()
+#   }
+#   if(str_detect(file_name, "sp_bp")){
+#     tbt_dat <- drive_read_string(file_link) %>% 
+#       read.csv(text = ., skip = 29) 
+#     
+#     tbt_dat <- tbt_dat[-1,] %>%
+#       clean_sp()
+#   }
+#   
+#   data_files_list[[file_name]] <- tbt_dat %>% 
+#     select(keep_cols)
+# }
+# 
+# all_dat <- bind_rows(data_files_list, .id = "file_name") %>% 
+#   mutate(location = case_when(str_detect(file_name, "bp") ~ "Brew Pit", 
+#                               str_detect(file_name, "tap") ~ "Tap Room"),
+#          metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (ppm)",
+#                             str_detect(file_name, "pm10") ~ "PM10 (ppm)",
+#                             TRUE ~ metric)) 
+# 
+# 
+# 
+# all_dat_day1avg <- all_dat %>% 
+#   filter(!(date == "2022-11-03" & str_detect(metric, "PM"))) %>% 
+#   filter(!str_detect(file_name, "hobo_tap_2022-11-08.csv")) %>% 
+#   filter(!str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
+#   bind_rows(all_dat %>% 
+#               filter(date == "2022-11-03") %>% 
+#               filter(str_detect(metric, "PM")) %>% 
+#               avg_to_1min()) %>% 
+#   bind_rows(all_dat %>% 
+#               filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
+#               avg_to_1min())  %>% 
+#   filter(date_time %within% interval(ymd_hms("2022-11-03 09:15:00"), ymd_hms("2022-11-03 15:15:00")) |
+#            date_time  %within% interval(ymd_hms("2022-11-08 06:40:00"), ymd_hms("2022-11-08 12:15:00")) |
+#            date ==  as_date(now()))
+# 
+# 
+# write_csv(all_dat_day1avg, "all_measurement_data.csv")
+# write_rds(all_dat_day1avg, "all_measurement_data.rds")
+# 
+# 
+# drive_upload(media = "all_measurement_data.rds",
+#              name = "all_measurement_data.rds", 
+#              path = as_id("1c61caoNIFOnZfeCkFZ479jEYATyj66C5"),
+#              overwrite = TRUE)
 
-keep_cols <- c("date_time", "date", "time", "month", "day", 
-               "hour", "minute", "metric", "Result")
 
-tbt_data_files <- drive_ls(path = "https://drive.google.com/drive/folders/1c61caoNIFOnZfeCkFZ479jEYATyj66C5") %>% 
-  filter(str_detect(name, "\\d{4}-\\d{2}-\\d{2}"))
-
-data_files_list <- list()
-
-for (i in seq(1:length(tbt_data_files$id))){
-  
-  file_link <- tbt_data_files$drive_resource[[i]]$webViewLink
-  file_name <- tbt_data_files$name[i]
-  
-  if(str_detect(file_name, "hobo_co2")){
-    tbt_dat <- drive_read_string(file_link) %>% 
-      read.csv(text = ., skip = 1) %>% 
-      clean_hobo_co2()
-  }
-  if(str_detect(file_name, "hobo_(?!co2)")){
-    tbt_dat <- drive_read_string(file_link) %>% 
-      read.csv(text = ., skip = 1) %>% 
-      clean_hobo_dat()
-  }
-  if(str_detect(file_name, "sp_tap")){
-    tbt_dat <- drive_read_string(file_link) %>% 
-      read_csv(.,skip = 28) 
-    
-    tbt_dat <- tbt_dat[-1,] %>% 
-      clean_sp()
-  }
-  if(str_detect(file_name, "sp_bp")){
-    tbt_dat <- drive_read_string(file_link) %>% 
-      read.csv(text = ., skip = 29) 
-    
-    tbt_dat <- tbt_dat[-1,] %>%
-      clean_sp()
-  }
-  
-  data_files_list[[file_name]] <- tbt_dat %>% 
-    select(keep_cols)
-}
-
-all_dat <- bind_rows(data_files_list, .id = "file_name") %>% 
-  mutate(location = case_when(str_detect(file_name, "bp") ~ "Brew Pit", 
-                              str_detect(file_name, "tap") ~ "Tap Room"),
-         metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (ppm)",
-                            str_detect(file_name, "pm10") ~ "PM10 (ppm)",
-                            TRUE ~ metric)) 
-
-
-
-all_dat_day1avg <- all_dat %>% 
-  filter(!(date == "2022-11-03" & str_detect(metric, "PM"))) %>% 
-  filter(!str_detect(file_name, "hobo_tap_2022-11-08.csv")) %>% 
-  filter(!str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
-  bind_rows(all_dat %>% 
-              filter(date == "2022-11-03") %>% 
-              filter(str_detect(metric, "PM")) %>% 
-              avg_to_1min()) %>% 
-  bind_rows(all_dat %>% 
-              filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
-              avg_to_1min())  %>% 
-  filter(date_time %within% interval(ymd_hms("2022-11-03 09:15:00"), ymd_hms("2022-11-03 15:15:00")) |
-           date_time  %within% interval(ymd_hms("2022-11-08 06:40:00"), ymd_hms("2022-11-08 12:15:00")) |
-           date ==  as_date(now()))
-
-
-write_csv(all_dat_day1avg, "all_measurement_data.csv")
-write_rds(all_dat_day1avg, "all_measurement_data.rds")
-
-
-drive_upload(media = "all_measurement_data.rds",
-             name = "all_measurement_data.rds", 
-             path = as_id("1c61caoNIFOnZfeCkFZ479jEYATyj66C5"),
-             overwrite = TRUE)
-
-
-#if you don't want to run all the code above to get the most recent data, just ask AHz to 
-#push the latest version and then download and run the all_measurement_data.rds
+#you can run all the code above if you want to get the most up to date data, but you can 
+#also just ask amanda to run and push a new RDS file if it's not already up to date
+#
 all_measurement_data <- readRDS("all_measurement_data.rds")
 
 ###############################################################################
