@@ -28,7 +28,7 @@ options(
 # gs4_deauth()
 # 
 # # Authenticate using token. If no browser opens, the authentication works.
-# gs4_auth(cache = ".secrets", email = "amandabhernandez@gmail.com")
+#gs4_auth(cache = ".secrets", email = "amandabhernandez@gmail.com")
 
 library(shiny)
 library(shinythemes)
@@ -165,9 +165,31 @@ all_dat <- bind_rows(data_files_list, .id = "file_name") %>%
                             str_detect(file_name, "pm10") ~ "PM10 (ppm)",
                             TRUE ~ metric)) 
 
+# sample_start_stop <- drive_read_string("https://docs.google.com/spreadsheets/d/1ZwZ9FuUgRcFDR1VFsHrO3JPZXF2ScWM0gCfwbjwI4fk/edit?usp=drivesdk")
+#   read_sheet(sheet = "sample_start_stop", col_types = "c")
+#   mutate(date = ymd(`Date (YYYY/MM/DD)`),
+#          start_time = ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`Start Time (0:00 - 23:5)`)),
+#          end_time =  ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`End Time (0:00 - 23:5)`)),
+#          samp_interval = interval(start = start_time, end = end_time)) %>%
+#   select(date, `Sampling Stage`, samp_interval)
+
+sample_start_stop <- read_sheet("https://docs.google.com/spreadsheets/d/1C1EOCRyySb47LWvx4Nv-aNPAsDbl0XcBT3I3yLxVj9g/edit#gid=0",
+                                 col_types = "c") %>% 
+  mutate(date = ymd(`Date (YYYY/MM/DD)`), 
+         start_time = case_when(!is.na(`Start Time (0:00 - 23:5)`) ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`Start Time (0:00 - 23:5)`)),
+                                TRUE ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " 00:00"))),
+         end_time =  case_when(!is.na(`End Time (0:00 - 23:5)`) ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`End Time (0:00 - 23:5)`)),
+                               TRUE ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " 23:59"))),
+         samp_interval = interval(start = start_time, end = end_time)) %>% 
+  select(date, `Sampling Stage`, samp_interval)
 
 
-all_dat_day1avg <- all_dat %>% 
+
+sampling_dates <- c( "2022-11-09", "2022-11-17", "2022-11-18",
+                     "2022-11-21", "2022-11-23", "2022-11-25",
+                     "2022-11-28", "2022-11-29")
+
+all_dat_avg <- all_dat %>% 
   filter(!(date == "2022-11-03" & str_detect(metric, "PM"))) %>% 
   filter(!str_detect(file_name, "hobo_tap_2022-11-08.csv")) %>% 
   filter(!str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
@@ -178,10 +200,14 @@ all_dat_day1avg <- all_dat %>%
   bind_rows(all_dat %>% 
               filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
               avg_to_1min())  %>% 
-  filter(date_time %within% interval(ymd_hms("2022-11-03 09:15:00"), ymd_hms("2022-11-03 15:15:00")) |
-           date_time  %within% interval(ymd_hms("2022-11-08 06:40:00"), ymd_hms("2022-11-08 12:15:00")) |
-           date ==  as_date(now())) #%>% 
-  #mutate(Result = format(Result, scientific = FALSE, big.mark = ","))
+  left_join(sample_start_stop) %>% 
+  mutate(keep = case_when(date_time %within% samp_interval ~ "yes",
+                          TRUE ~ "no")) %>% 
+  filter(keep == "yes") %>% 
+  select(-samp_interval, -keep)
+  # filter(date_time %within% interval(ymd_hms("2022-11-03 09:15:00"), ymd_hms("2022-11-03 15:15:00")) |
+  #          date_time  %within% interval(ymd_hms("2022-11-08 06:40:00"), ymd_hms("2022-11-08 12:15:00")) |
+  #          date %in% as_date(sampling_dates)) 
 
 
 
@@ -191,8 +217,8 @@ all_dat_day1avg <- all_dat %>%
 
 sample_dates <- ""
 #list of dates
-for(i in seq_along(1:length(unique(all_dat_day1avg$date)))){
-  sample_dates[i] <- paste0("Day ",i, ": ",rev(unique(all_dat_day1avg$date))[i])
+for(i in seq_along(1:length(unique(all_dat_avg$date)))){
+  sample_dates[i] <- paste0("Day ",i, ": ",rev(unique(all_dat_avg$date))[i])
 }
   
   
@@ -226,7 +252,7 @@ time_subplot <- function(ggdat, facet){
   sub_box <- ggplot(sub_dat) + 
     geom_boxplot(aes(x = location, y = Result, fill = location)) + 
     ggthemes::theme_pander() +
-    viridis::scale_fill_viridis(discrete = TRUE, end = 0.75) +
+    viridis::scale_fill_viridis(discrete = TRUE, end = 0.75, alpha = 0.5) +
     theme(legend.position = "none",
           panel.grid.major.y = element_blank(),
           panel.grid.major.x = element_line(color = "snow2"), 

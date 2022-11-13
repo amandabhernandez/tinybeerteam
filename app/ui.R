@@ -15,10 +15,14 @@ dashboardPage(
   
   # Sidebar with a slider input for number of bins
   dashboardSidebar(
-    uiOutput("date_select"), 
+   
+    
+    br(),
+    sidebarMenu(menuItem("Dashboard", tabName = "dashboard", icon = icon("home"))),
+    br(),
 
-    sidebarMenu(menuItem("Dashboard", tabName = "dashboard", icon = icon("thumb-tack"))),
-    sidebarMenu(menuItem("Metrics", tabname = "metrics", icon = icon("area-chart"), startExpanded = TRUE,
+    sidebarMenu(menuItem("Metrics", tabname = "metrics", icon = icon("area-chart"), startExpanded = FALSE,
+                         uiOutput("date_select"), 
                          menuSubItem("Temperature",
                                      tabName = "temp"),
                          menuSubItem("Humidity",

@@ -24,7 +24,7 @@ shinyServer(function(input, output) {
                 multiple = FALSE)})
   
   sampling_date_dat <- eventReactive(input$date_select, {
-    all_dat_day1avg %>% 
+    all_dat_avg %>% 
       filter(date == ymd(str_extract(input$date_select, "(?<=: ).*"))) 
     }
     
@@ -33,20 +33,39 @@ shinyServer(function(input, output) {
 
   output$airplot <- renderPlotly({
     
-    plot_dat <- sampling_date_dat()
-
-      air_plot <- ggplot(plot_dat, aes(x = date_time, y = Result ,
-                                       label = time,
-                                       label2 = date)) +
-        geom_line(aes(color = location), size = 1) +
-        scale_x_time(labels = scales::label_time(format = '%H:%M')) + 
-        viridis::scale_color_viridis(discrete = TRUE, end = 0.75) +
-        facet_wrap(~metric, ncol = 1, scales = "free_y") +
+    plot_dat <- all_dat_avg %>% 
+      #filter(`Sampling Stage` == "Brewing") %>% 
+      group_by(date, location, metric) %>% 
+      arrange(date_time) %>% 
+      mutate(rec_num = seq_along(1:n())/60)
+ 
+      # air_plot <- ggplot(plot_dat, aes(x = date_time, y = Result ,
+      #                                  label = time,
+      #                                  label2 = date)) +
+      #   geom_line(aes(color = location), size = 1) +
+      #   scale_x_time(labels = scales::label_time(format = '%H:%M')) + 
+      #   viridis::scale_color_viridis(discrete = TRUE, end = 0.75) +
+      #   facet_wrap(~metric, ncol = 1, scales = "free_y") +
+      #   ggthemes::theme_pander() +
+      #   xlab("Date")+
+      #   ylab("Concentration") +
+      #   theme(#legend.position = "none",
+      #         panel.grid.major.y = element_blank(),
+      #         panel.grid.major.x = element_line(color = "snow2"),
+      #         strip.text.x = element_text(color = "black", face = "bold"),
+      #         text = element_text(family = "Arial"))
+      
+      air_plot <- ggplot(plot_dat, aes(x = rec_num, y = Result, 
+                                       color = as.character(date),
+                                       label = `Sampling Stage`,
+                                       label2 = rec_num)) +
+        geom_line() + 
+        viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Date") +
+        facet_grid(metric~location, scales = "free") +
         ggthemes::theme_pander() +
-        xlab("Date")+
-        ylab("Concentration") +
-        theme(#legend.position = "none",
-              panel.grid.major.y = element_blank(),
+        xlab("# of hours passed")+
+        ylab("Concentration") + 
+        theme(panel.grid.major.y = element_blank(),
               panel.grid.major.x = element_line(color = "snow2"),
               strip.text.x = element_text(color = "black", face = "bold"),
               text = element_text(family = "Arial"))
@@ -125,7 +144,7 @@ shinyServer(function(input, output) {
     
     sep_pm_box <-  ggplot(pm_plot_dat %>% filter(str_detect(metric, "PM"))) + 
       geom_boxplot(aes(x = location, y = Result, fill = location)) + 
-      viridis::scale_color_viridis(discrete = TRUE, end = 0.75) +   
+      viridis::scale_fill_viridis(discrete = TRUE, end = 0.75, alpha = 0.5) +   
       facet_wrap(~metric, ncol = 1) + 
       ggthemes::theme_pander() +
       theme(legend.position = "none",
