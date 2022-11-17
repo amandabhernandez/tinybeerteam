@@ -155,23 +155,16 @@ for (i in seq(1:length(tbt_data_files$id))){
   }
 
   data_files_list[[file_name]] <- tbt_dat %>% 
-    select(keep_cols)
+    select(all_of(keep_cols))
 }
 
 all_dat <- bind_rows(data_files_list, .id = "file_name") %>% 
   mutate(location = case_when(str_detect(file_name, "bp") ~ "Brew Pit", 
-                              str_detect(file_name, "tap") ~ "Tap Room"),
+                              str_detect(file_name, "tap") ~ "Taproom"),
          metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (ppm)",
                             str_detect(file_name, "pm10") ~ "PM10 (ppm)",
                             TRUE ~ metric)) 
 
-# sample_start_stop <- drive_read_string("https://docs.google.com/spreadsheets/d/1ZwZ9FuUgRcFDR1VFsHrO3JPZXF2ScWM0gCfwbjwI4fk/edit?usp=drivesdk")
-#   read_sheet(sheet = "sample_start_stop", col_types = "c")
-#   mutate(date = ymd(`Date (YYYY/MM/DD)`),
-#          start_time = ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`Start Time (0:00 - 23:5)`)),
-#          end_time =  ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`End Time (0:00 - 23:5)`)),
-#          samp_interval = interval(start = start_time, end = end_time)) %>%
-#   select(date, `Sampling Stage`, samp_interval)
 
 sample_start_stop <- read_sheet("https://docs.google.com/spreadsheets/d/1C1EOCRyySb47LWvx4Nv-aNPAsDbl0XcBT3I3yLxVj9g/edit#gid=0",
                                  col_types = "c") %>% 
