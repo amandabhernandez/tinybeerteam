@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.secrets
+*.png
+*.csv
+data/
+*.rds
+*rsconnect
+*google-analytics.html
