@@ -197,7 +197,11 @@ all_dat_avg <- all_dat %>%
   mutate(keep = case_when(date_time %within% samp_interval ~ "yes",
                           TRUE ~ "no")) %>% 
   filter(keep == "yes") %>% 
-  select(-samp_interval, -keep)
+  select(-samp_interval, -keep) %>% 
+  mutate(intervention = case_when(as.character(date) %in% c("2022-11-03", "2022-11-08", 
+                                                            "2022-11-09", "2022-11-17", "2022-11-21") ~ "Normal Brewing",
+                                  as.character(date) %in% c("2022-11-18") ~ "Portable Air Cleaner", 
+                                  TRUE ~ "Normal Brewing"))
   # filter(date_time %within% interval(ymd_hms("2022-11-03 09:15:00"), ymd_hms("2022-11-03 15:15:00")) |
   #          date_time  %within% interval(ymd_hms("2022-11-08 06:40:00"), ymd_hms("2022-11-08 12:15:00")) |
   #          date %in% as_date(sampling_dates)) 
