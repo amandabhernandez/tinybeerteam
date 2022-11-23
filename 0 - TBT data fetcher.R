@@ -169,31 +169,53 @@ sample_start_stop <- read_sheet("https://docs.google.com/spreadsheets/d/1ZwZ9FuU
 ##### PROCESS RAW DATA + FILTER TO SAMPLING EVENTS #########
 
 
-all_dat_avg <- all_dat %>%
-  filter(!(date == "2022-11-03" & str_detect(metric, "PM"))) %>%
-  filter(!str_detect(file_name, "hobo_tap_2022-11-08.csv")) %>%
-  filter(!str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>%
-  bind_rows(all_dat %>%
-              filter(date == "2022-11-03") %>%
-              filter(str_detect(metric, "PM")) %>%
-              avg_to_1min()) %>%
-  bind_rows(all_dat %>%
-              filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>%
-              avg_to_1min())
-
-all_dat_w_log <- all_dat_avg %>% 
+all_dat_avg <- all_dat %>% 
+  filter(!(date == "2022-11-03" & str_detect(metric, "PM"))) %>% 
+  filter(!str_detect(file_name, "hobo_tap_2022-11-08.csv")) %>% 
+  filter(!str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
+  bind_rows(all_dat %>% 
+              filter(date == "2022-11-03") %>% 
+              filter(str_detect(metric, "PM")) %>% 
+              avg_to_1min()) %>% 
+  bind_rows(all_dat %>% 
+              filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
+              avg_to_1min())  %>% 
   left_join(sample_start_stop) %>% 
   mutate(keep = case_when(date_time %within% samp_interval ~ "yes",
                           TRUE ~ "no")) %>% 
   filter(keep == "yes") %>% 
   select(-samp_interval, -keep) %>% 
-  mutate(intervention = case_when(as.character(date) %in% c("2022-11-03", "2022-11-08", "2022-11-09") ~ "BAU",
-                                  TRUE ~ "PAC"))
+  mutate(intervention = case_when(as.character(date) %in% c("2022-11-03", "2022-11-08", 
+                                                            "2022-11-09", "2022-11-17", "2022-11-21") ~ "Normal Brewing",
+                                  as.character(date) %in% c("2022-11-18") ~ "Portable Air Cleaner", 
+                                  TRUE ~ "Normal Brewing"))
 
+# all_dat_avg <- all_dat %>%
+#   filter(!(date == "2022-11-03" & str_detect(metric, "PM"))) %>%
+#   filter(!str_detect(file_name, "hobo_tap_2022-11-08.csv")) %>%
+#   filter(!str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>%
+#   bind_rows(all_dat %>%
+#               filter(date == "2022-11-03") %>%
+#               filter(str_detect(metric, "PM")) %>%
+#               avg_to_1min()) %>%
+#   bind_rows(all_dat %>%
+#               filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>%
+#               avg_to_1min())
+
+# all_dat_w_log <- all_dat_avg %>% 
+#   left_join(sample_start_stop) %>% 
+#   mutate(keep = case_when(date_time %within% samp_interval ~ "yes",
+#                           TRUE ~ "no")) %>% 
+#   filter(keep == "yes") %>% 
+#   select(-samp_interval, -keep) %>% 
+#   mutate(intervention = case_when(as.character(date) %in% c("2022-11-03", "2022-11-08", 
+#                                                             "2022-11-09", "2022-11-17", "2022-11-21") ~ "Normal Brewing",
+#                                   as.character(date) %in% c("2022-11-18") ~ "Portable Air Cleaner", 
+#                                   TRUE ~ "Normal Brewing"))
 
 
 # write_csv(all_dat_avg, "all_measurement_data.csv")
-write_rds(all_dat_w_log, "all_measurement_data.rds")
+write_rds(all_dat_avg, "all_measurement_data.rds")
 
 
 drive_upload(media = "all_measurement_data.rds",
