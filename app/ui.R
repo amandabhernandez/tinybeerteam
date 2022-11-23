@@ -18,7 +18,7 @@ dashboardPage(
    
     
     br(),
-    sidebarMenu(menuItem("Dashboard", tabName = "dashboard", icon = icon("home"))),
+    sidebarMenu(menuItem("Dashboard", tabName = "dashboard", icon = icon("beer"))),
     br(),
 
     sidebarMenu(menuItem("Metrics", tabname = "metrics", icon = icon("area-chart"), startExpanded = FALSE,
@@ -32,6 +32,12 @@ dashboardPage(
                          menuSubItem("PM",
                                      tabName = "pm"))
                 ),
+    sidebarMenu(menuItem("Study Design", tabname = "study_design", icon = icon("users"), startExpanded = FALSE,
+                         menuSubItem("Power Calculations",
+                                     tabName = "pwr")
+                         )
+    ),
+    br(),
     sidebarMenu(menuItem("Source code", 
                          icon = icon("github"), 
                          href = "https://github.com/amandabhernandez/tinybeerteam"))
@@ -83,7 +89,22 @@ dashboardPage(
                            solidHeader = TRUE, 
                            title = "Distribution of PM measurements", 
                            plotlyOutput("pm_density")),
-                       ))
+                       )),
+      tabItem(tabName = "pwr",
+              fluidRow(box(title = "Up to date power calculation",
+                           uiOutput("effect_size"), 
+                           uiOutput("samp_interval"), 
+                           DT::dataTableOutput("pwr_calc_table"), width = 12, status = "primary", 
+                           solidHeader = TRUE),
+                       box(width = 6, status = "info", 
+                           solidHeader = TRUE, 
+                           title = "Distribution of PM measurements", 
+                           plotlyOutput("pm_density_all")),
+                       box(width = 6, status = "info", 
+                           solidHeader = TRUE, 
+                           title = "Boxplot of PM measurements", 
+                           plotlyOutput("pm_boxplot_all")),
+              ))
 
                        ))
 
