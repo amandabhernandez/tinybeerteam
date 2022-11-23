@@ -93,14 +93,14 @@ precision_check %>%
                  color = as.character(date))) + 
   geom_point(aes(x = rec_num, y = `Taproom`, 
                  color = as.character(date))) + 
-  geom_linerange(aes(x = rec_num, ymin = `Brew Pit`, ymax = `Taproom`, 
+  geom_linerange(aes(x = rec_num, ymin = `Taproom`, ymax = `Brew Pit`, 
                      color = as.character(date))) + 
   geom_text(precision_check_sum, mapping = aes(x = 0.5, y = 0.04, 
                                                label = paste0("Mean RPD: ", paste0(round(mean_RPD*100, 0), "%")),
                                                color = as.character(date))) + 
   viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Date") +
   theme_bw() +
-  xlim(0, 5) + 
+  xlim(0, 15) + 
   xlab("# of minutes") +
   ylab("Measurement (ppm)") +
   theme(legend.position = "none", 
@@ -120,18 +120,23 @@ precision_check %>%
 # 4. LOOK AT DATA  #########################################
 ###############################################################################
 
+
+
+
 ######### COMPARE ACROSS DIFFERENT SAMPLING DATES #############
 
 
 compare_dates <- brewing_measurement_data %>% 
-  filter(str_detect(metric, "PM")) %>% 
+  filter(str_detect(metric, "PM") | str_detect(metric, "CO2")) %>% 
   group_by(date, location, metric) %>% 
   arrange(date_time) %>% 
   mutate(rec_num = seq_along(1:n()))
 
-ggplot(compare_dates, aes(x = rec_num/60, y = Result, color = as.character(date))) + 
+ggplot(compare_dates, aes(x = rec_num/60, y = Result, color = as.character(date), alpha = intervention)) + 
   geom_line(size = 1) + 
   viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Date") +
+  scale_alpha_manual(values = c(0.25, 1), name = "Intervention") + 
+  #scale_color_manual(values = c("#ff5722ff", "#4285f4ff", "#2d3b45ff"), name = "Date")+
   facet_grid(metric~location, scales = "free") +
   theme_bw(base_size = 22) + 
   #ggthemes::theme_pander(base_size = 22) +
@@ -141,23 +146,25 @@ ggplot(compare_dates, aes(x = rec_num/60, y = Result, color = as.character(date)
         panel.grid.major.x = element_line(color = "snow2"),
         #strip.background = element_blank(),
         strip.text = element_text(color = "black", face = "bold", size = 18),
-        legend.background = element_rect(fill = "#ffc263"),
-        legend.key = element_rect(fill = "#ffc263"),
+        #legend.background = element_rect(fill = "#ffc263"),
+        #legend.key = element_rect(fill = "#ffc263"),
         panel.spacing = unit(1, "lines"),
-        plot.background = element_rect(fill = "#ffc263"),
+        #plot.background = element_rect(fill = "#ffc263"),
         text = element_text(family = "Arial"),
         plot.margin = margin(1,1,1.5,1.2, "cm")
         ) + 
   guides(colour = guide_legend(override.aes = list(size=3)))
 
-ggsave("PM measurements normalized to hours of sampling_asof_2022-11-09.png", width = 18, height = 10, units = "in")
+ggsave("PM and CO2 measurements normalized to hours of sampling_asof_2022-11-21.png", 
+       width = 18, height = 10, units = "in")
 
 
 ggplot(brewing_measurement_data %>% 
          filter(str_detect(metric, "PM")) %>% 
-         filter(date == "2022-11-08"), aes(x = date_time, y = Result, color = location)) + 
+         filter(date == "2022-11-17"), aes(x = date_time, y = Result, color = location)) + 
   geom_line(size = 1) + 
   viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Location") +
+  #scale_color_manual(values = c("#ff5722ff", "#4285f4ff", "#2d3b45ff"), name = "Date")+
   facet_wrap(~metric, scales = "free_y", ncol = 1) +
   theme_bw(base_size = 22) + 
   #ggthemes::theme_pander(base_size = 22) +
@@ -167,10 +174,10 @@ ggplot(brewing_measurement_data %>%
         panel.grid.major.x = element_line(color = "snow2"),
         #strip.background = element_blank(),
         strip.text = element_text(color = "black", face = "bold", size = 18),
-        legend.background = element_rect(fill = "#ffc263"),
-        legend.key = element_rect(fill = "#ffc263"),
+        #legend.background = element_rect(fill = "#ffc263"),
+        #legend.key = element_rect(fill = "#ffc263"),
         panel.spacing = unit(1, "lines"),
-        plot.background = element_rect(fill = "#ffc263"),
+        #plot.background = element_rect(fill = "#ffc263"),
         text = element_text(family = "Arial"),
         plot.margin = margin(1,1,1.5,1.2, "cm")
   ) + 
@@ -192,7 +199,8 @@ gtsummary::tbl_strata(data = brewing_measurement_data %>% filter(str_detect(metr
                           include = c("Result"),
                           type = list("Result" ~ 'continuous2'),
                           statistic = all_continuous() ~ c("{median} ({min} - {max})", 
-                                                           "{mean} ({sd})")), 
+                                                           "{mean} ({sd})",
+                                                           "{p")), 
                       .combine_with = "tbl_stack"
 )
 
@@ -214,21 +222,24 @@ power_calc_update <- brewing_measurement_data %>%
   filter(str_detect(metric, "PM")) %>% 
   group_by(location, date, metric) %>% 
   summarize(mean_PM = mean(Result),
+            PM_90 = quantile(Result, .9), 
             sd_PM = sd(Result)) %>% 
   bind_rows(brewing_measurement_data %>% 
               filter(str_detect(metric, "PM")) %>% 
               group_by(location, metric) %>% 
               summarize(mean_PM = mean(Result),
+                        PM_90 = quantile(Result, .9), 
                         sd_PM = sd(Result))) %>% 
   bind_rows(brewing_measurement_data %>% 
               filter(str_detect(metric, "PM")) %>% 
               group_by(metric) %>% 
               summarize(mean_PM = mean(Result),
+                        PM_90 = quantile(Result, .9), 
                         sd_PM = sd(Result))) %>% 
   mutate(date = case_when(is.na(date) ~ "All Samples",
                           TRUE ~ as.character(date))) %>% 
   mutate(#sample_size_needed = ((1.96+.842)/((mean_PM-(mean_PM*0.7))/(sd_PM)))^2,
-         samp_size_needed = (((1.96+0.842)^2)*2*sd_PM^2)/((mean_PM-mean_PM*0.7)^2),
+         samp_size_needed = (((1.96+0.842)^2)*2*sd_PM^2)/((mean_PM-mean_PM*0.6)^2),
          hours_needed = (samp_size_needed*15)/60) %>% 
   filter(date == "All Samples") %>% 
   left_join(brewing_measurement_data %>% 
@@ -271,9 +282,12 @@ brewing_15min_sample <- brewing_measurement_data %>%
             n = n()) %>% 
   filter(n == 15)
 
-ggplot(brewing_15min_sample, aes(x = rec_group, y = avg_15_min, color = as.character(date))) + 
+ggplot(brewing_15min_sample %>% 
+         filter(str_detect(metric, "PM")), aes(x = rec_group, y = avg_15_min, color = as.character(date))) + 
   geom_point() + 
   geom_line() + 
+  viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Date") +
+  theme_bw() + 
   facet_grid(metric~location, scales = "free")
 
 ##### GARBAGE <3 ################
