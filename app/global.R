@@ -166,16 +166,14 @@ all_dat <- bind_rows(data_files_list, .id = "file_name") %>%
                             TRUE ~ metric)) 
 
 
-sample_start_stop <- read_sheet("https://docs.google.com/spreadsheets/d/1C1EOCRyySb47LWvx4Nv-aNPAsDbl0XcBT3I3yLxVj9g/edit#gid=0",
-                                 col_types = "c") %>% 
+sample_start_stop <- read_sheet("https://docs.google.com/spreadsheets/d/1ZwZ9FuUgRcFDR1VFsHrO3JPZXF2ScWM0gCfwbjwI4fk/edit#gid=1915312888",
+                                sheet = "sample_start_stop", col_types = "c") %>% 
   mutate(date = ymd(`Date (YYYY/MM/DD)`), 
-         start_time = case_when(!is.na(`Start Time (0:00 - 23:5)`) ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`Start Time (0:00 - 23:5)`)),
-                                TRUE ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " 00:00"))),
-         end_time =  case_when(!is.na(`End Time (0:00 - 23:5)`) ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`End Time (0:00 - 23:5)`)),
-                               TRUE ~ ymd_hm(paste(`Date (YYYY/MM/DD)`, " 23:59"))),
-         samp_interval = interval(start = start_time, end = end_time)) %>% 
-  select(date, `Sampling Stage`, samp_interval)
-
+         start_time = ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`Start Time (0:00 - 23:5)`)),
+         end_time =  ymd_hm(paste(`Date (YYYY/MM/DD)`, " " ,`End Time (0:00 - 23:5)`)),
+         samp_interval = interval(start = start_time, end = end_time),
+         location = Instrument) %>% 
+  select(date, location, `Sampling Status`, samp_interval)
 
 
 sampling_dates <- c( "2022-11-09", "2022-11-17", "2022-11-18",
@@ -193,11 +191,11 @@ all_dat_avg <- all_dat %>%
   bind_rows(all_dat %>% 
               filter(str_detect(file_name, "hobo_tap_2022-11-08.csv") | str_detect(file_name, "hobo_tap_2022-11-09.csv")) %>% 
               avg_to_1min())  %>% 
-  left_join(sample_start_stop) %>% 
+  left_join(sample_start_stop) %>%
   mutate(keep = case_when(date_time %within% samp_interval ~ "yes",
-                          TRUE ~ "no")) %>% 
-  filter(keep == "yes") %>% 
-  select(-samp_interval, -keep) %>% 
+                          TRUE ~ "no")) %>%
+  filter(keep == "yes") %>%
+  select(-samp_interval, -keep) %>%
   mutate(intervention = case_when(as.character(date) %in% c("2022-11-03", "2022-11-08", 
                                                             "2022-11-09", "2022-11-17", "2022-11-21") ~ "Normal Brewing",
                                   as.character(date) %in% c("2022-11-18") ~ "Portable Air Cleaner", 

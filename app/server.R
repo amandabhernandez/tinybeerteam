@@ -31,14 +31,22 @@ shinyServer(function(input, output) {
   )
     
 
+  
   output$airplot <- renderPlotly({
     
+    new_col <- function(dat){
+      dat %>% 
+        group_by(.) %>% 
+        mutate(rec_num = seq_along(1:n()))
+      
+    }
+    
     plot_dat <- all_dat_avg %>% 
-      filter(`Sampling Stage` == "Brewing") %>% 
+      filter(`Sampling Status` == "Brewing") %>% 
       group_by(date, location, metric) %>% 
-      arrange(date_time) %>% 
-      mutate(rec_num = seq_along(1:n())/60)
- 
+      mutate(rec_num = row_number()/60)
+
+
       # air_plot <- ggplot(plot_dat, aes(x = date_time, y = Result ,
       #                                  label = time,
       #                                  label2 = date)) +
@@ -62,7 +70,7 @@ shinyServer(function(input, output) {
                          aes(x = rec_num, y = Result, 
                              color = as.character(date),
                              label4 = date,
-                             label = `Sampling Stage`,
+                             label = `Sampling Status`,
                              label2 = `Hours Passed`,
                              label3 = `Concentration Measured`,
                              alpha = intervention
@@ -210,14 +218,14 @@ shinyServer(function(input, output) {
     
     all_dat_avg %>% 
       # filter(intervention == "Normal Brewing") %>% 
-      # filter(`Sampling Stage` == "Brewing") %>% 
+      # filter(`Sampling Status` == "Brewing") %>% 
       # filter(str_detect(metric, "PM")) %>%
       # group_by(location, date, metric) %>% 
       # summarize(mean_PM = mean(Result),
       #           sd_PM = sd(Result)) %>% 
       #bind_rows(all_dat_avg %>% 
                   filter(intervention == "Normal Brewing") %>% 
-                  filter(`Sampling Stage` == "Brewing") %>% 
+                  filter(`Sampling Status` == "Brewing") %>% 
                   filter(str_detect(metric, "PM")) %>% 
                   group_by(location, metric) %>% 
                   summarize(mean_PM = mean(Result),
@@ -225,7 +233,7 @@ shinyServer(function(input, output) {
     #) %>% 
       # bind_rows(all_dat_avg %>% 
       #             filter(intervention == "Normal Brewing") %>% 
-      #             filter(`Sampling Stage` == "Brewing") %>% 
+      #             filter(`Sampling Status` == "Brewing") %>% 
       #             filter(str_detect(metric, "PM"))  %>% 
       #             group_by(metric) %>% 
       #             summarize(mean_PM = mean(Result),
@@ -261,7 +269,7 @@ shinyServer(function(input, output) {
 
   output$pm_boxplot_all <- renderPlotly({
     pm_box <- all_dat_avg %>% 
-      filter(`Sampling Stage` == "Brewing") %>% 
+      filter(`Sampling Status` == "Brewing") %>% 
       filter(intervention == "Normal Brewing") %>% 
       filter(str_detect(metric, "PM")) %>% 
       ggplot() + 
@@ -277,7 +285,7 @@ shinyServer(function(input, output) {
   
   output$pm_density_all <- renderPlotly({
     ggplot(all_dat_avg %>% 
-             filter(`Sampling Stage` == "Brewing") %>%
+             filter(`Sampling Status` == "Brewing") %>%
              filter(intervention == "Normal Brewing") %>% 
              filter(str_detect(metric, "PM")) 
              , aes(x = Result)) +
