@@ -174,32 +174,6 @@ ggsave("PM and CO2 measurements normalized to hours of sampling_asof_2022-11-25.
        width = 18, height = 10, units = "in")
 
 
-# ggplot(brewing_measurement_data %>% 
-#          filter(str_detect(metric, "PM")) %>% 
-#          filter(date == "2022-11-08"), aes(x = date_time, y = result, color = location)) + 
-#   geom_line(size = 1) + 
-#   viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Location") +
-#   #scale_color_manual(values = c("#ff5722ff", "#4285f4ff", "#2d3b45ff"), name = "Date")+
-#   facet_wrap(~metric, scales = "free_y", ncol = 1) +
-#   theme_bw(base_size = 22) + 
-#   #ggthemes::theme_pander(base_size = 22) +
-#   xlab("\nTime")+
-#   ylab("Concentration (ppm)\n") + 
-#   theme(panel.grid.major.y = element_blank(),
-#         panel.grid.major.x = element_line(color = "snow2"),
-#         #strip.background = element_blank(),
-#         strip.text = element_text(color = "black", face = "bold", size = 18),
-#         #legend.background = element_rect(fill = "#ffc263"),
-#         #legend.key = element_rect(fill = "#ffc263"),
-#         panel.spacing = unit(1, "lines"),
-#         #plot.background = element_rect(fill = "#ffc263"),
-#         text = element_text(family = "Arial"),
-#         plot.margin = margin(1,1,1.5,1.2, "cm")
-#   ) + 
-#   guides(colour = guide_legend(override.aes = list(size=3)))
-# 
-# 
-# ggsave("PM measurements day 2.png", width = 18, height = 10, units = "in")
 
 
 ######### GET SUMMARY STATS #############
@@ -225,7 +199,8 @@ gtsummary::tbl_strata(data = brewing_measurement_data %>% filter(str_detect(metr
 
 hours_collected <- brewing_measurement_data %>% 
   group_by(date, metric, location) %>% 
-  summarize(sampling_time = as.duration(interval(start = min(date_time), end = max(date_time)))) %>% 
+  summarize(sampling_time = as.duration(interval(start = min(date_time), 
+                                                 end = max(date_time)))) %>% 
   group_by(metric, location) %>% 
   summarize(hours_collected = (sum(sampling_time)/60)/60)
 
@@ -325,23 +300,61 @@ ggplot(compare15min %>%
 # 6. MERGE WITH FIELD LOG  #########################################
 ###############################################################################
 
-#what is happening with location? 
-measurement_w_log <- all_measurement_data %>% 
-left_join(field_log) %>% 
+measurement_w_log_nomatch <- all_measurement_data %>% 
+  left_join(field_log) %>% 
   mutate(keep_fl = case_when(date_time %within% samp_interval ~ "yes",
-                          TRUE ~ "no")) %>% 
-  filter(keep_fl == "yes") %>% 
-  filter(`Sampling Stage` != "Other") %>% 
-  select(-samp_interval, -keep_fl)
+                             TRUE ~ "no")) %>% 
+  group_by(metric, date_time, location,  keep_fl) %>% 
+  count() %>% 
+  pivot_wider(names_from = keep_fl, values_from = n)  %>% 
+  filter(is.na(yes)) %>%
+  mutate(samp_key = paste0(date_time, metric, location))
 
 
-measurement_w_log %>% 
+measurement_w_log <- all_measurement_data %>% 
+  mutate(samp_key = paste0(date_time, metric, location)) %>% 
+  left_join(field_log) %>% 
+  filter(date_time %within% samp_interval) %>% 
+  bind_rows(all_measurement_data %>% 
+              mutate(samp_key = paste0(date_time, metric, location)) %>% 
+              filter(samp_key %in% measurement_w_log_nomatch$samp_key)) %>% 
+  select(-samp_interval)
+
+
+check_time_merges <- measurement_w_log %>% 
+  group_by(date, metric, location) %>% 
+  summarize(min = min(date_time),
+            max = max(date_time)) %>% 
+  mutate(dat = "log") %>% 
+  bind_rows(all_measurement_data %>% 
+              group_by(date, metric, location) %>% 
+              summarize(min = min(date_time),
+                        max = max(date_time)) %>% 
+              mutate(dat = "all")) %>% 
+  pivot_wider(names_from = dat, values_from = c(min, max)) %>% 
+  mutate(min_diff = as.duration(interval(min_all, min_log)),
+         max_diff = as.duration(interval(max_all, max_log))) 
+
+stopifnot(sum(check_time_merges$min_diff) == 0 & sum(check_time_merges$max_diff) == 0)
+
+
+
+write_rds(measurement_w_log, "measurement_data_w_log.rds")
+
+# drive_upload(media = "measurement_data_w_log.rds",
+#              name = "measurement_data_w_log.rds",
+#              path = as_id("1c61caoNIFOnZfeCkFZ479jEYATyj66C5"),
+#              overwrite = TRUE)
+
+
+
+measurement_w_log_wide <- measurement_w_log %>% 
   group_by(date_time, location, metric, `Sampling Stage`) %>% 
   count() %>% 
   pivot_wider(names_from = `Sampling Stage`, values_from = n) %>% 
-  mutate(sum = rowSums(across(where(is.numeric)), na.rm = TRUE)) %>% 
-  filter(sum > 1) %>% 
-  View()
+  mutate(sum = rowSums(across(where(is.numeric)), na.rm = TRUE)) 
+
+write_rds(measurement_w_log_wide, "measurement_data_w_log_wide.rds")
 
 
 plot_dates <- c("2022-11-03", "2022-11-08","2022-11-09","2022-11-17","2022-11-18",
@@ -351,25 +364,33 @@ plot_dates <- c("2022-11-03", "2022-11-08","2022-11-09","2022-11-17","2022-11-18
 field_log_plot <- list()
 for(i in plot_dates){
   
+  i <- "2022-11-08"
+  
   field_log_plot[[i]] <- all_measurement_data %>% 
-    filter(date == i) %>% 
-    filter(str_detect(metric, "PM") | str_detect(metric, "CO2")) %>% 
+    filter(date == i)  %>% 
+    filter(str_detect(metric, "PM")) %>% 
     ggplot() + 
     geom_rect(data = field_log %>%
                 filter(as.character(date) == i) %>% 
-                filter(`Sampling Stage` != "Other"), mapping = aes(xmin = start_time,
-                                                            xmax = end_time,
-                                                            ymin = 0, ymax = Inf, 
-                                                            fill = `Sampling Stage`),
-              alpha = 0.25) +
+                filter(start_time < ymd_hms("2022-11-08 11:30:00")) %>% 
+                filter(`Sampling Stage` != "Other"), 
+              mapping = aes(xmin = start_time,
+                            xmax = end_time,
+                            ymin = 0, ymax = Inf, 
+                            fill = `Sampling Stage`),
+              alpha = 0.3) +
     geom_text(data = field_log %>%
                 filter(as.character(date) == i) %>% 
+                filter(start_time < ymd_hms("2022-11-08 11:30:00")) %>% 
                 filter(`Sampling Stage` != "Other"), mapping = aes(x = start_time,
                                                                    y = 0, 
                                                                    label = samp_stage_label)) + 
     geom_line(aes(x = date_time, y = result, color = location), size = 1) + 
-    viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Location") +
-    scale_fill_discrete(drop = FALSE, na.translate = FALSE) + 
+    #viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Location") +
+    scale_color_manual(values = c("#ff5722ff", "#4285f4ff"), name = "Location") + 
+    scale_alpha(guide = "none") + 
+    # scale_fill_brewer(palette = "Set2", drop = FALSE, na.translate = FALSE) + 
+    scale_fill_discrete(drop = FALSE, na.translate = FALSE) +
     #viridis:scale_fill_viridis(discrete = TRUE, na.value = "grey50", option = "magma") + 
     #scale_color_manual(values = c("#ff5722ff", "#4285f4ff", "#2d3b45ff"), name = "Date")+
     facet_wrap(~metric, scales = "free_y", ncol = 1) +
@@ -382,20 +403,36 @@ for(i in plot_dates){
           panel.grid.major.x = element_line(color = "snow2"),
           #strip.background = element_blank(),
           strip.text = element_text(color = "black", face = "bold", size = 18),
-          #legend.background = element_rect(fill = "#ffc263"),
-          #legend.key = element_rect(fill = "#ffc263"),
+          #legend.background = element_rect(fill = "#ffc263ff"),
+          #legend.key = element_rect(fill = "#ffc263ff"),
           panel.spacing = unit(1, "lines"),
-          #plot.background = element_rect(fill = "#ffc263"),
+          #plot.background = element_rect(fill = "#ffc263ff"),
           text = element_text(family = "Arial"),
           plot.margin = margin(1,1,1.5,1.2, "cm")
     ) + 
     guides(colour = guide_legend(override.aes = list(size=3)))# + 
 
+  
   print(field_log_plot[[i]])
   ggsave(paste0(i," PM and CO2 measurements with field log.png"), width = 18, height = 10, units = "in")
   
   
 }
+
+####### ADD WEATHER DATA ####### 
+
+weather_data <- drive_read_string("https://drive.google.com/file/d/1cJWjM6izcUBZnGsOsLSmYPK63wikAaFU/view?usp=share_link") %>% 
+  read.csv(text = .) %>% 
+  mutate(valid = mdy_hm(valid),
+         date = ymd(str_remove_all(as.character(valid), "\\d*:\\d*:\\d*")),
+         # time = hms(str_extract(as.character(valid), "\\d*:\\d*:\\d*")),
+         hour = hour(hms(str_extract(as.character(valid), "\\d*:\\d*:\\d*"))))
+
+
+measurement_log_weather <- measurement_w_log %>% 
+  left_join(weather_data)
+
+
 
 
 ###############################################################################
@@ -427,6 +464,185 @@ gtsummary::tbl_strata(data = brewing_step_comp %>%
                       .combine_with = "tbl_stack"
 )
 
+gtsummary::tbl_strata(data = all_measurement_data,  #%>% 
+                        #filter(location == "Brew Pit"), 
+                      strata = metric,
+                      .tbl_fun = ~.x %>%
+                        tbl_summary(
+                          by = location, 
+                          digits = everything() ~ 2,
+                          include = c("result"),
+                          type = list("result" ~ 'continuous2'),
+                          statistic = all_continuous() ~ c("{median} ({min} - {max})", 
+                                                           "{mean} ({sd})",
+                                                           "{p90}")), 
+                      .combine_with = "tbl_stack"
+)
+
+ggplot(brewing_measurement_data %>% 
+         filter(str_detect(metric, "PM")),
+       aes(x = location, y = result, color = location)) + 
+  ggforce::geom_sina(alpha = 0.5) +
+  geom_boxplot(width = 0.1, guides = FALSE, outlier.shape = NA, size = 1, color = "#3a3838") +
+  scale_color_manual(values = c("#ff5722ff", "#4285f4ff")) + 
+  #scale_color_brewer(palette = "Set2") + 
+  # scale_color_viridis_d(begin = 0.25, end = 0.75, option = "magma") + 
+  facet_wrap(~metric, scales = "free") + 
+  theme_bw(base_size = 22) + 
+  xlab("\nLocation")+
+  ylab("Concentration (ppm)\n") + 
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(color = "snow2"),
+        strip.background = element_blank(),
+        strip.text = element_text(color = "black", face = "bold", size = 18),
+        legend.position = "none",
+        #legend.background = element_rect(fill = "#ffc263ff"),
+        #legend.key = element_rect(fill = "#ffc263ff"),
+        panel.spacing = unit(1, "lines"),
+        #plot.background = element_rect(fill = "#ffc263ff"),
+        text = element_text(family = "Arial"),
+        plot.margin = margin(1,1,1.5,1.2, "cm")
+  ) + 
+  guides(colour = guide_legend(override.aes = list(size=3)))
+
+ggsave("boxplots all active brewing.png", width = 18, height = 10, units = "in")
+
+
+
+ggplot(measurement_w_log %>% 
+         filter(str_detect(metric, "PM")) %>% 
+         filter(!`Sampling Stage` %in% c("1. Precision Check", "2. Background Run","Other") & !is.na(`Sampling Stage`)) %>% 
+         mutate(`Sampling Stage` = factor(`Sampling Stage`, 
+                                          levels = c("1. Precision Check",
+                                                     "2. Background Run",
+                                                     "3. Grain Pouring",
+                                                     "4. Mashing" ,
+                                                     "5. Mash Rest" ,
+                                                     "6. Solids Settling",
+                                                     "7. Recirculating of Solids" ,
+                                                     "8. Transfer",
+                                                     "9. Scooping Out Spent Grains",
+                                                     "10. Boiling",
+                                                     "11. Cooling" ,
+                                                     "12. Hops added",
+                                                     "Other"),
+                                          labels = c("Precision Check",
+                                                     "Background Run",
+                                                     "Grain\nPouring",
+                                                     "Mashing" ,
+                                                     "Mash\nRest" ,
+                                                     "Solids\nSettling",
+                                                     "Recirculating\nof Solids" ,
+                                                     "Transfer",
+                                                     "Scooping Out\nSpent Grains",
+                                                     "Boiling",
+                                                     "Cooling" ,
+                                                     "Hops\nadded",
+                                                     "Other"))), #%>% 
+         # mutate(samp_stage_label = factor(samp_stage_label, levels = c(as.character(1:12), "NA")),
+         #        `Sampling Stage` = str_wrap(as.character(`Sampling Stage`), 10),
+         #        `Sampling Stage` = fct_reorder(`Sampling Stage`, as.character(samp_stage_label), min)), 
+       aes(x = `Sampling Stage`, y = result, color = metric)) + 
+  ggforce::geom_sina(alpha = 0.5) +
+  geom_boxplot(width = 0.2, guides = FALSE, outlier.shape = NA, size = 0.5, color = "#3a3838") +
+  scale_color_brewer(palette = "Set2") + 
+  #scale_color_manual(values = c("#ff5722ff", "#4285f4ff")) + 
+  #scale_color_brewer(palette = "Set2") + 
+  # scale_color_viridis_d(begin = 0.25, end = 0.75, option = "magma") + 
+  facet_wrap(~metric, scales = "free", ncol = 1) + 
+  theme_bw(base_size = 22) + 
+  xlab("\nBrewing Stage")+
+  ylab("Concentration (ppm)\n") + 
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(color = "snow2"),
+        strip.background = element_blank(),
+        strip.text = element_text(color = "black", face = "bold", size = 18),
+        legend.position = "none",
+        #legend.background = element_rect(fill = "#ffc263ff"),
+        #legend.key = element_rect(fill = "#ffc263ff"),
+        #panel.spacing = unit(1, "lines"),
+        #plot.background = element_rect(fill = "#ffc263ff"),
+        text = element_text(family = "Arial"),
+        plot.margin = margin(1,1,1.5,1.2, "cm")
+  ) + 
+  guides(colour = guide_legend(override.aes = list(size=3)))
+
+ggsave("boxplots sampling stage.png", width = 18, height = 10, units = "in")
+
+
+ggplot(measurement_w_log %>% 
+         filter(str_detect(metric, "PM")) %>% 
+         filter(location == "Brew Pit") %>% 
+         filter(`Sampling Stage` %in% c("3. Grain Pouring", "4. Mashing", "10. Boiling")) %>% 
+         #filter(!`Sampling Stage` %in% c("1. Precision Check", "2. Background Run","Other") & !is.na(`Sampling Stage`)) %>% 
+         mutate(`Sampling Stage` = factor(`Sampling Stage`, 
+                                          levels = c("1. Precision Check",
+                                                     "2. Background Run",
+                                                     "3. Grain Pouring",
+                                                     "4. Mashing" ,
+                                                     "5. Mash Rest" ,
+                                                     "6. Solids Settling",
+                                                     "7. Recirculating of Solids" ,
+                                                     "8. Transfer",
+                                                     "9. Scooping Out Spent Grains",
+                                                     "10. Boiling",
+                                                     "11. Cooling" ,
+                                                     "12. Hops added",
+                                                     "Other"),
+                                          labels = c("Precision Check",
+                                                     "Background Run",
+                                                     "Grain\nPouring",
+                                                     "Mashing" ,
+                                                     "Mash\nRest" ,
+                                                     "Solids\nSettling",
+                                                     "Recirculating\nof Solids" ,
+                                                     "Transfer",
+                                                     "Scooping Out\nSpent Grains",
+                                                     "Boiling",
+                                                     "Cooling" ,
+                                                     "Hops\nadded",
+                                                     "Other"))) %>% 
+         group_by(date, location, metric, `Sampling Stage`) %>% 
+         arrange(date_time) %>% 
+         mutate(rec_num = seq_along(1:n())),
+        #%>% 
+       # mutate(samp_stage_label = factor(samp_stage_label, levels = c(as.character(1:12), "NA")),
+       #        `Sampling Stage` = str_wrap(as.character(`Sampling Stage`), 10),
+       #        `Sampling Stage` = fct_reorder(`Sampling Stage`, as.character(samp_stage_label), min)), 
+       aes(x = rec_num, y = result, color = as.character(date)), group = location) + 
+  geom_line() + 
+  # ggforce::geom_sina(alpha = 0.5) +
+  # geom_boxplot(width = 0.2, guides = FALSE, outlier.shape = NA, size = 0.5, color = "#3a3838") +
+  #scale_color_brewer(palette = "Set2") + 
+  #scale_color_manual(values = c("#ff5722ff", "#4285f4ff")) + 
+  #scale_color_brewer(palette = "Set2") + 
+  scale_color_viridis_d( end = 0.75, name = "Date") + 
+  facet_grid(metric~`Sampling Stage`, scales = "free") + 
+  theme_bw(base_size = 22) + 
+  xlab("\n# of hours passed")+
+  ylab("Concentration (ppm)\n") + 
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line(color = "snow2"),
+        strip.background = element_blank(),
+        strip.text = element_text(color = "black", face = "bold", size = 18),
+        #legend.position = "none",
+        #legend.background = element_rect(fill = "#ffc263ff"),
+        #legend.key = element_rect(fill = "#ffc263ff"),
+        #panel.spacing = unit(1, "lines"),
+        #plot.background = element_rect(fill = "#ffc263ff"),
+        text = element_text(family = "Arial"),
+        plot.margin = margin(1,1,1.5,1.2, "cm")
+  ) + 
+  guides(colour = guide_legend(override.aes = list(size=3)))
+
+# 
+# measurement_w_log %>% 
+#   filter(str_detect(metric, "PM")) %>% 
+#   filter(!`Sampling Stage` %in% c("1. Precision Check", "2. Background Run","Other") & !is.na(`Sampling Stage`)) %>% 
+#   group_by(metric, `Sampling Stage`) %>% 
+#   summarize(median = median(result))%>%
+#   arrange(desc(median))
+
 # brewing_step_comp_test <- brewing_step_comp %>% 
 #   filter(str_detect(metric, "PM")) %>% 
 #   filter(location == "Brew Pit")
@@ -439,15 +655,44 @@ ggplot(brewing_step_comp %>%
          aes(x = samp_stage_test, y = result, color = samp_stage_test)) + 
   ggforce::geom_sina(alpha = 0.5) +
   geom_boxplot(width = 0.1, guides = FALSE, outlier.shape = NA, size = 1, color = "#3a3838") +
-  scale_color_viridis_d(begin = 0.25, end = 0.75, option = "magma") + 
+  scale_color_brewer(palette = "Set2") + 
+  # scale_color_viridis_d(begin = 0.25, end = 0.75, option = "magma") + 
   facet_grid(metric~location, scales = "free_y") + 
   theme_bw()
+
+
+brewing_measurement_data %>% 
+  select(date, hour, minute, metric, result, location, sampling_status) %>% 
+  pivot_wider(names_from = metric, values_from = result) %>% 
+  filter(!is.na(`PM2.5 (ppm)`) & !(is.na(`PM10 (ppm)`))) %>% 
+  # group_by(metric) %>% 
+  mutate(PM2.5_quantiles = cut(`PM2.5 (ppm)`, breaks = c(quantile(`PM2.5 (ppm)`, probs = seq(0,1, by = 0.25))),
+                         labels = c(1:4), include.lowest = TRUE, right = FALSE),
+         PM10_quantiles = cut(`PM10 (ppm)`, breaks = c(quantile(`PM10 (ppm)`, probs = seq(0,1, by = 0.25))),
+                               labels = c(1:4), include.lowest = TRUE, right = FALSE)) %>% 
+  pivot_longer(names_to = "PM", values_to = "quantile", PM2.5_quantiles:PM10_quantiles) %>% 
+ggplot(aes(x = as.character(quantile), y = `Temperature (F)`)) + 
+  geom_boxplot() + 
+  facet_wrap(~PM)
+
+
+
+
+
 
 
 get_upper_tri <- function(cormat){
   cormat[lower.tri(cormat)]<- NA
   return(cormat)
 }
+
+
+
+brewing_bp_corr <- brewing_measurement_data %>% 
+  filter(location == "Brew Pit") %>% 
+  select(-file_name) %>% 
+  pivot_wider(names_from = "metric", values_from = "result") 
+
 
 cor.matrix_bp <- cor(brewing_bp_corr[,11:15], method = "spearman",
                   use = "complete.obs")
@@ -476,7 +721,7 @@ brewing_tap_corr <- brewing_measurement_data %>%
   pivot_wider(names_from = "metric", values_from = "result") 
 
 
-cor.matrix_tap <- cor(brewing_bp_corr[,11:14], method = "spearman",
+cor.matrix_tap <- cor(brewing_tap_corr[,11:14], method = "spearman",
                      use = "complete.obs")
 
 reshape2::melt(get_upper_tri(cor.matrix_tap)) %>%
@@ -498,11 +743,57 @@ reshape2::melt(get_upper_tri(cor.matrix_tap)) %>%
 
 
 
+all_weather_corr <- brewing_measurement_data %>% 
+  left_join(weather_data) %>% 
+  select(-file_name) %>% 
+  pivot_wider(names_from = "metric", values_from = "result") 
+
+cor.matrix.weather <- cor(all_weather_corr[,13:19], method = "spearman",
+                          use = "complete.obs")
+reshape2::melt(get_upper_tri(cor.matrix.weather)) %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) +
+  geom_tile() +
+  geom_text(aes(label = round(value,2))) +
+  scale_fill_gradient2(limit = c(-1,1), breaks = c(-1, -.75 ,-.5, -.25, 0, .25,.5, .75, 1),
+                       low = "#29af7f", high =  "#b8de29", mid = "white",
+                       name = "Cor value") +
+  scale_x_discrete(position = "top") +
+  theme(panel.background = element_rect(fill = "white"),
+        axis.text.y = element_text(size=12),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        legend.text = element_text(size=12)) +
+  xlab("")+
+  ylab("") + 
+  ggtitle("Spearman Corr weather (all")
+
+
+reshape2::melt(get_upper_tri(cor(all_weather_corr[, 13:19], method = "spearman",
+                                 use = "complete.obs"))) %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) +
+  geom_tile() +
+  geom_text(aes(label = round(value,2))) +
+  scale_fill_gradient2(limit = c(-1,1), breaks = c(-1, -.75 ,-.5, -.25, 0, .25,.5, .75, 1),
+                       low = "#29af7f", high =  "#b8de29", mid = "white",
+                       name = "Cor value") +
+  scale_x_discrete(position = "top") +
+  theme(panel.background = element_rect(fill = "white"),
+        axis.text.y = element_text(size=12),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        legend.text = element_text(size=12)) +
+  xlab("")+
+  ylab("") + 
+  ggtitle("Spearman Corr weather (Brew Pit)")
 
 
 
 
-
+ggpubr::ggscatter(all_weather_corr, x = "PM2.5 (ppm)", y = "tmpf", 
+                   color = as.character("date"), scales = "free", 
+                  add = "reg.line", conf.int = TRUE, 
+                  cor.coef = TRUE, cor.method = "spearman",
+                  xlab = "Indoor", ylab = "Outdoor")
 
 
 ##### GARBAGE <3 ################
@@ -599,3 +890,29 @@ reshape2::melt(get_upper_tri(cor.matrix_tap)) %>%
 #         ) + 
 #   guides(colour = guide_legend(override.aes = list(size=3)))
 
+# ggplot(brewing_measurement_data %>% 
+#          filter(str_detect(metric, "PM")) %>% 
+#          filter(date == "2022-11-08"), aes(x = date_time, y = result, color = location)) + 
+#   geom_line(size = 1) + 
+#   viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Location") +
+#   #scale_color_manual(values = c("#ff5722ff", "#4285f4ff", "#2d3b45ff"), name = "Date")+
+#   facet_wrap(~metric, scales = "free_y", ncol = 1) +
+#   theme_bw(base_size = 22) + 
+#   #ggthemes::theme_pander(base_size = 22) +
+#   xlab("\nTime")+
+#   ylab("Concentration (ppm)\n") + 
+#   theme(panel.grid.major.y = element_blank(),
+#         panel.grid.major.x = element_line(color = "snow2"),
+#         #strip.background = element_blank(),
+#         strip.text = element_text(color = "black", face = "bold", size = 18),
+#         #legend.background = element_rect(fill = "#ffc263"),
+#         #legend.key = element_rect(fill = "#ffc263"),
+#         panel.spacing = unit(1, "lines"),
+#         #plot.background = element_rect(fill = "#ffc263"),
+#         text = element_text(family = "Arial"),
+#         plot.margin = margin(1,1,1.5,1.2, "cm")
+#   ) + 
+#   guides(colour = guide_legend(override.aes = list(size=3)))
+# 
+# 
+# ggsave("PM measurements day 2.png", width = 18, height = 10, units = "in")
