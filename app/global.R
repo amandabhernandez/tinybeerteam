@@ -161,8 +161,8 @@ for (i in seq(1:length(tbt_data_files$id))){
 all_dat <- bind_rows(data_files_list, .id = "file_name") %>% 
   mutate(location = case_when(str_detect(file_name, "bp") ~ "Brew Pit", 
                               str_detect(file_name, "tap") ~ "Taproom"),
-         metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (ppm)",
-                            str_detect(file_name, "pm10") ~ "PM10 (ppm)",
+         metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (mg/m3)",
+                            str_detect(file_name, "pm10") ~ "PM10 (mg/m3)",
                             TRUE ~ metric)) 
 
 
