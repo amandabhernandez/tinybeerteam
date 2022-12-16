@@ -21,7 +21,9 @@ p_load(gtsummary)
 #also just ask amanda to run and push a new RDS file to the google drive if it's not already up to date. then just 
 #download that file and put it where ever you want and load it here
 
-all_measurement_data <- readRDS("all_measurement_data.rds")
+# all_measurement_data <- readRDS("all_measurement_data.rds")
+
+load("all_tbt_data_0.RData")
 
 brewing_measurement_data <- all_measurement_data %>% 
   filter(sampling_status == "Brewing") 
@@ -84,7 +86,6 @@ precision_check <- background_precision %>%
   arrange(date_time) %>% 
   mutate(rec_num = seq_along(1:n())-1) 
 
-
 precision_check_sum <- precision_check %>% 
   filter(rec_num <= 5) %>% 
   group_by(date, metric) %>% 
@@ -98,35 +99,51 @@ precision_check_sum <- precision_check %>%
   pivot_wider(names_from = min_max, values_from = value)  %>% 
   group_by(date, metric, mean_RPD) %>% 
   summarize(min = min(min), 
+
             max = max(max))
 
 
 precision_check %>% 
-  filter(rec_num <= 5) %>% 
+  filter(rec_num <= 55) %>% 
   ggplot() + 
-  geom_point(aes(x = rec_num, y = `Brew Pit`, 
-                 color = as.character(date))) + 
-  geom_point(aes(x = rec_num, y = `Taproom`, 
-                 color = as.character(date))) + 
-  geom_linerange(aes(x = rec_num, ymin = `Taproom`, ymax = `Brew Pit`, 
-                     color = as.character(date))) + 
-  geom_text(precision_check_sum, mapping = aes(x = 2, y = 0.04, 
-                                               label = paste0("Mean RPD: ", paste0(round(mean_RPD*100, 0), "%")),
-                                               color = as.character(date))) + 
-  viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Date") +
-  theme_bw() +
+  geom_point(aes(x = rec_num, y = `Brew Pit`#, 
+                 #color = as.character(date)
+                 ), color = "snow4") + 
+  geom_point(aes(x = rec_num, y = `Taproom`#, 
+                 #color = as.character(date)
+                 ), color = "snow4") + 
+  geom_linerange(aes(x = rec_num, ymin = `Taproom`, ymax = `Brew Pit`#, 
+                     #color = as.character(date)
+                     ), color = "snow4") + 
+  # geom_text(precision_check_sum, mapping = aes(x = 2, y = 0.04, 
+  #                                              label = paste0("Mean RPD: ", paste0(round(mean_RPD*100, 0), "%"))#,
+  #                                              #color = as.character(date)
+  #                                              ),
+  #           color = "black") + 
+  #viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Date") +
+  # scale_color_manual(color = "lightgrey")
+  theme_bw(base_size = 22) + 
   xlim(0, 5) + 
   xlab("# of minutes") +
-  ylab("Measurement (ppm)") +
+  ylab("Measurement (mg/m3)") +
   theme(legend.position = "none", 
         axis.text = element_text(size=14),
+        #legend.background = element_rect(fill = "#eeeeeeff"),
+        #legend.key = element_rect(fill = "#eeeeeeff"),
+        #panel.spacing = unit(1, "lines"),
+        plot.background = element_rect(fill = "#eeeeeeff"),
         strip.text = element_text(size = 16, face = "bold")) +
-  facet_grid(metric~date) + 
-  ggtitle("Measurement and mean RPD for sidepak measurements during sampling precision check")
+  facet_grid(metric~date, scales = "free")# + 
+  # ggtitle("Measurement and mean RPD for sidepak measurements during sampling precision check")
+  # 
+
+ggsave("precision_checks.png", 
+       width = 18, height = 10, units = "in")
 
 
 
 
+#eeeeeeff
 
 
 
@@ -207,56 +224,6 @@ hours_collected <- brewing_measurement_data %>%
 
 
 
-#redo power calc
-power_calc_update <- brewing_measurement_data %>% 
-  filter(str_detect(metric, "PM")) %>% 
-  group_by(location, date, metric) %>% 
-  summarize(mean_PM = mean(result),
-            PM_90 = quantile(result, .9), 
-            sd_PM = sd(result)) %>% 
-  bind_rows(brewing_measurement_data %>% 
-              filter(str_detect(metric, "PM")) %>% 
-              group_by(location, metric) %>% 
-              summarize(mean_PM = mean(result),
-                        PM_90 = quantile(result, .9), 
-                        sd_PM = sd(result))) %>% 
-  bind_rows(brewing_measurement_data %>% 
-              filter(str_detect(metric, "PM")) %>% 
-              group_by(metric) %>% 
-              summarize(mean_PM = mean(result),
-                        PM_90 = quantile(result, .9), 
-                        sd_PM = sd(result))) %>% 
-  mutate(date = case_when(is.na(date) ~ "All Samples",
-                          TRUE ~ as.character(date))) %>% 
-  mutate(#sample_size_needed = ((1.96+.842)/((mean_PM-(mean_PM*0.7))/(sd_PM)))^2,
-         samp_size_needed = (((1.96+0.842)^2)*2*sd_PM^2)/((mean_PM-mean_PM*0.6)^2),
-         hours_needed = (samp_size_needed*15)/60) %>% 
-  filter(date == "All Samples") %>% 
-  left_join(brewing_measurement_data %>% 
-              group_by(date, metric, location) %>% 
-              summarize(sampling_time = as.duration(interval(start = min(date_time), end = max(date_time)))) %>% 
-              group_by(metric, location) %>% 
-              summarize(min_collected = (sum(sampling_time)/60),
-                        samples_collected = min_collected/15, 
-                        hours_collected = min_collected/60)
-  ) 
-
-
-#roughly how many hours of sampling do we have? or how many 15 min samples? 
-brewing_measurement_data %>% 
-  group_by(date, metric, location) %>% 
-  summarize(sampling_time = as.duration(interval(start = min(date_time), end = max(date_time)))) %>% 
-  group_by(metric, location) %>% 
-  summarize(sum_hrs = (sum(sampling_time)/60)/60,
-            n_samples_collected = (sum(sampling_time)/60)/15)
-
-
-power_calc_update %>% 
-  ungroup() %>% 
-  mutate(`Mean (SD)` = paste0(round(mean_PM, 4), " (", round(sd_PM, 4), ")")) %>% 
-  select(location, metric, `Mean (SD)`, hours_needed, hours_collected) %>% 
-  flextable::flextable()
-
 
 ###############################################################################
 # 5. AVERAGE TO 15 MIN SAMPLES  #########################################
@@ -301,7 +268,9 @@ ggplot(compare15min %>%
 ###############################################################################
 
 measurement_w_log_nomatch <- all_measurement_data %>% 
-  left_join(field_log) %>% 
+  left_join(field_log
+            #%>% filter(`Sampling Stage` != "Other")
+            ) %>% 
   mutate(keep_fl = case_when(date_time %within% samp_interval ~ "yes",
                              TRUE ~ "no")) %>% 
   group_by(metric, date_time, location,  keep_fl) %>% 
@@ -313,7 +282,9 @@ measurement_w_log_nomatch <- all_measurement_data %>%
 
 measurement_w_log <- all_measurement_data %>% 
   mutate(samp_key = paste0(date_time, metric, location)) %>% 
-  left_join(field_log) %>% 
+  left_join(field_log 
+           # %>% filter(`Sampling Stage` != "Other")
+            ) %>% 
   filter(date_time %within% samp_interval) %>% 
   bind_rows(all_measurement_data %>% 
               mutate(samp_key = paste0(date_time, metric, location)) %>% 
@@ -339,7 +310,7 @@ stopifnot(sum(check_time_merges$min_diff) == 0 & sum(check_time_merges$max_diff)
 
 
 
-write_rds(measurement_w_log, "measurement_data_w_log.rds")
+# write_rds(measurement_w_log, "measurement_data_w_log.rds")
 
 # drive_upload(media = "measurement_data_w_log.rds",
 #              name = "measurement_data_w_log.rds",
@@ -349,14 +320,32 @@ write_rds(measurement_w_log, "measurement_data_w_log.rds")
 
 
 measurement_w_log_wide <- measurement_w_log %>% 
+ # filter(`Sampling Stage` != "Other") %>% 
+  select(date, date_time, location, metric, `Sampling Stage`, result, sampling_status) %>% 
+  distinct() %>% 
   group_by(date_time, location, metric, `Sampling Stage`) %>% 
-  count() %>% 
-  pivot_wider(names_from = `Sampling Stage`, values_from = n) %>% 
-  mutate(sum = rowSums(across(where(is.numeric)), na.rm = TRUE)) 
+  mutate(n = n()) %>% 
+  # filter(n == 1) %>% 
+  pivot_wider(names_from = `Sampling Stage`, values_from = n) 
+  # mutate(sum = rowSums(across(where(is.numeric)), na.rm = TRUE)) 
 
-write_rds(measurement_w_log_wide, "measurement_data_w_log_wide.rds")
+# measurement_w_log %>%
+#   dplyr::group_by(date_time, location, metric, `Sampling Stage`) %>%
+#   dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+#   dplyr::filter(n > 1L)  %>% 
+#   View()
+
+# write_rds(measurement_w_log_wide, "measurement_data_w_log_wide.rds")
 
 
+
+
+###############################################################################
+# 7. MAKE PLOTS FOR PRESENTATION/PAPER  #######################################
+###############################################################################
+
+
+### MAKE THE TIME SERIES-FIELD LOG DAILY PLOTS ###
 plot_dates <- c("2022-11-03", "2022-11-08","2022-11-09","2022-11-17","2022-11-18",
                 "2022-11-21","2022-11-23", "2022-11-25")
 
@@ -369,6 +358,7 @@ for(i in plot_dates){
   field_log_plot[[i]] <- all_measurement_data %>% 
     filter(date == i)  %>% 
     filter(str_detect(metric, "PM")) %>% 
+    # filter(date_time < "2022-11-08 11:30:00") %>% 
     ggplot() + 
     geom_rect(data = field_log %>%
                 filter(as.character(date) == i) %>% 
@@ -398,7 +388,7 @@ for(i in plot_dates){
     ggtitle(paste0("Sampling Date: ", i)) + 
     #ggthemes::theme_pander(base_size = 22) +
     xlab("\nTime")+
-    ylab("Concentration (ppm)\n") + 
+    ylab("Concentration (mg/m3)\n") + 
     theme(panel.grid.major.y = element_blank(),
           panel.grid.major.x = element_line(color = "snow2"),
           #strip.background = element_blank(),
@@ -419,53 +409,11 @@ for(i in plot_dates){
   
 }
 
-####### ADD WEATHER DATA ####### 
+### MAKE THE SUMMARY STATS TABLES ### 
 
-weather_data <- drive_read_string("https://drive.google.com/file/d/1cJWjM6izcUBZnGsOsLSmYPK63wikAaFU/view?usp=share_link") %>% 
-  read.csv(text = .) %>% 
-  mutate(valid = mdy_hm(valid),
-         date = ymd(str_remove_all(as.character(valid), "\\d*:\\d*:\\d*")),
-         # time = hms(str_extract(as.character(valid), "\\d*:\\d*:\\d*")),
-         hour = hour(hms(str_extract(as.character(valid), "\\d*:\\d*:\\d*"))))
-
-
-measurement_log_weather <- measurement_w_log %>% 
-  left_join(weather_data)
-
-
-
-
-###############################################################################
-# 7. AHz DATA EXPLORING  #########################################
-###############################################################################
-
-
-brewing_step_comp <- measurement_w_log %>% 
-  filter(`Sampling Stage` != "Other") %>% 
-  mutate(samp_stage_test = case_when(!`Sampling Stage` %in% c("10. Boiling", "4. Mashing")  ~ "Other Brewing Step",
-                                     TRUE ~ as.character(`Sampling Stage`)))
-
-
-
-
-gtsummary::tbl_strata(data = brewing_step_comp %>% 
-                        filter(str_detect(metric, "PM")) %>% 
-                        filter(location == "Brew Pit"), 
-                      strata = metric,
-                      .tbl_fun = ~.x %>%
-                        tbl_summary(
-                          by = samp_stage_test, 
-                          digits = everything() ~ 2,
-                          include = c("result"),
-                          type = list("result" ~ 'continuous2'),
-                          statistic = all_continuous() ~ c("{median} ({min} - {max})", 
-                                                           "{mean} ({sd})",
-                                                           "{p90}")), 
-                      .combine_with = "tbl_stack"
-)
 
 gtsummary::tbl_strata(data = all_measurement_data,  #%>% 
-                        #filter(location == "Brew Pit"), 
+                      #filter(location == "Brew Pit"), 
                       strata = metric,
                       .tbl_fun = ~.x %>%
                         tbl_summary(
@@ -479,6 +427,10 @@ gtsummary::tbl_strata(data = all_measurement_data,  #%>%
                       .combine_with = "tbl_stack"
 )
 
+
+### MAKE THE BOXPLOTS FOR ALL BREWING ACTIVITY ### 
+
+
 ggplot(brewing_measurement_data %>% 
          filter(str_detect(metric, "PM")),
        aes(x = location, y = result, color = location)) + 
@@ -490,7 +442,7 @@ ggplot(brewing_measurement_data %>%
   facet_wrap(~metric, scales = "free") + 
   theme_bw(base_size = 22) + 
   xlab("\nLocation")+
-  ylab("Concentration (ppm)\n") + 
+  ylab("Concentration (mg/m3)\n") + 
   theme(panel.grid.major.y = element_blank(),
         panel.grid.major.x = element_line(color = "snow2"),
         strip.background = element_blank(),
@@ -508,51 +460,52 @@ ggplot(brewing_measurement_data %>%
 ggsave("boxplots all active brewing.png", width = 18, height = 10, units = "in")
 
 
+### SET UP MEASUREMENT W LOG NAMING FOR PLOTS ### 
 
-ggplot(measurement_w_log %>% 
-         filter(str_detect(metric, "PM")) %>% 
-         filter(!`Sampling Stage` %in% c("1. Precision Check", "2. Background Run","Other") & !is.na(`Sampling Stage`)) %>% 
-         mutate(`Sampling Stage` = factor(`Sampling Stage`, 
-                                          levels = c("1. Precision Check",
-                                                     "2. Background Run",
-                                                     "3. Grain Pouring",
-                                                     "4. Mashing" ,
-                                                     "5. Mash Rest" ,
-                                                     "6. Solids Settling",
-                                                     "7. Recirculating of Solids" ,
-                                                     "8. Transfer",
-                                                     "9. Scooping Out Spent Grains",
-                                                     "10. Boiling",
-                                                     "11. Cooling" ,
-                                                     "12. Hops added",
-                                                     "Other"),
-                                          labels = c("Precision Check",
-                                                     "Background Run",
-                                                     "Grain\nPouring",
-                                                     "Mashing" ,
-                                                     "Mash\nRest" ,
-                                                     "Solids\nSettling",
-                                                     "Recirculating\nof Solids" ,
-                                                     "Transfer",
-                                                     "Scooping Out\nSpent Grains",
-                                                     "Boiling",
-                                                     "Cooling" ,
-                                                     "Hops\nadded",
-                                                     "Other"))), #%>% 
-         # mutate(samp_stage_label = factor(samp_stage_label, levels = c(as.character(1:12), "NA")),
-         #        `Sampling Stage` = str_wrap(as.character(`Sampling Stage`), 10),
-         #        `Sampling Stage` = fct_reorder(`Sampling Stage`, as.character(samp_stage_label), min)), 
-       aes(x = `Sampling Stage`, y = result, color = metric)) + 
-  ggforce::geom_sina(alpha = 0.5) +
+measurement_w_log_plot <- measurement_w_log %>% 
+  mutate(`Sampling Stage` = factor(`Sampling Stage`, 
+                                   levels = c("1. Precision Check",
+                                              "2. Background Run",
+                                              "3. Grain Pouring",
+                                              "4. Mashing" ,
+                                              "5. Mash Rest" ,
+                                              "6. Solids Settling",
+                                              "7. Recirculating of Solids" ,
+                                              "8. Transfer",
+                                              "9. Scooping Out Spent Grains",
+                                              "10. Boiling",
+                                              "11. Cooling" ,
+                                              "12. Hops added",
+                                              "Other"),
+                                   labels = c("Precision Check",
+                                              "Background Run",
+                                              "Grain\nPouring",
+                                              "Mashing" ,
+                                              "Mash\nRest" ,
+                                              "Solids\nSettling",
+                                              "Recirculating\nof Solids" ,
+                                              "Transfer",
+                                              "Scooping Out\nSpent Grains",
+                                              "Boiling",
+                                              "Cooling" ,
+                                              "Hops\nadded",
+                                              "Other")))
+
+
+### MAKE BOXPLOT WITH BREWING STAGE BINS ### 
+ggplot(measurement_w_log_plot %>%   filter(str_detect(metric, "PM")) %>% 
+         filter(!`Sampling Stage` %in% c("Precision Check", "Background Run","Other", "Hops\nadded", "Cooling") & !is.na(`Sampling Stage`)), 
+       aes(x = `Sampling Stage`, y = result)) + 
+  ggforce::geom_sina(alpha = 0.5, color = "gray55") +
   geom_boxplot(width = 0.2, guides = FALSE, outlier.shape = NA, size = 0.5, color = "#3a3838") +
-  scale_color_brewer(palette = "Set2") + 
-  #scale_color_manual(values = c("#ff5722ff", "#4285f4ff")) + 
+  # scale_color_brewer(palette = "Set2") + 
+  # scale_color_manual(values = c("gray55", "gray77")) + 
   #scale_color_brewer(palette = "Set2") + 
   # scale_color_viridis_d(begin = 0.25, end = 0.75, option = "magma") + 
   facet_wrap(~metric, scales = "free", ncol = 1) + 
   theme_bw(base_size = 22) + 
   xlab("\nBrewing Stage")+
-  ylab("Concentration (ppm)\n") + 
+  ylab("Concentration (mg/m3)\n") + 
   theme(panel.grid.major.y = element_blank(),
         panel.grid.major.x = element_line(color = "snow2"),
         strip.background = element_blank(),
@@ -570,45 +523,16 @@ ggplot(measurement_w_log %>%
 ggsave("boxplots sampling stage.png", width = 18, height = 10, units = "in")
 
 
-ggplot(measurement_w_log %>% 
+
+
+### MAKETIME SERIES GRAPHS WITH NORMALIZED TIME 0 FOR DIFFERENT BREWING STAGES
+ggplot(measurement_w_log_plot %>% 
          filter(str_detect(metric, "PM")) %>% 
          filter(location == "Brew Pit") %>% 
-         filter(`Sampling Stage` %in% c("3. Grain Pouring", "4. Mashing", "10. Boiling")) %>% 
-         #filter(!`Sampling Stage` %in% c("1. Precision Check", "2. Background Run","Other") & !is.na(`Sampling Stage`)) %>% 
-         mutate(`Sampling Stage` = factor(`Sampling Stage`, 
-                                          levels = c("1. Precision Check",
-                                                     "2. Background Run",
-                                                     "3. Grain Pouring",
-                                                     "4. Mashing" ,
-                                                     "5. Mash Rest" ,
-                                                     "6. Solids Settling",
-                                                     "7. Recirculating of Solids" ,
-                                                     "8. Transfer",
-                                                     "9. Scooping Out Spent Grains",
-                                                     "10. Boiling",
-                                                     "11. Cooling" ,
-                                                     "12. Hops added",
-                                                     "Other"),
-                                          labels = c("Precision Check",
-                                                     "Background Run",
-                                                     "Grain\nPouring",
-                                                     "Mashing" ,
-                                                     "Mash\nRest" ,
-                                                     "Solids\nSettling",
-                                                     "Recirculating\nof Solids" ,
-                                                     "Transfer",
-                                                     "Scooping Out\nSpent Grains",
-                                                     "Boiling",
-                                                     "Cooling" ,
-                                                     "Hops\nadded",
-                                                     "Other"))) %>% 
+         filter(`Sampling Stage` %in% c("Grain\nPouring", "Mashing", "Boiling")) %>% 
          group_by(date, location, metric, `Sampling Stage`) %>% 
          arrange(date_time) %>% 
          mutate(rec_num = seq_along(1:n())),
-        #%>% 
-       # mutate(samp_stage_label = factor(samp_stage_label, levels = c(as.character(1:12), "NA")),
-       #        `Sampling Stage` = str_wrap(as.character(`Sampling Stage`), 10),
-       #        `Sampling Stage` = fct_reorder(`Sampling Stage`, as.character(samp_stage_label), min)), 
        aes(x = rec_num, y = result, color = as.character(date)), group = location) + 
   geom_line() + 
   # ggforce::geom_sina(alpha = 0.5) +
@@ -619,8 +543,8 @@ ggplot(measurement_w_log %>%
   scale_color_viridis_d( end = 0.75, name = "Date") + 
   facet_grid(metric~`Sampling Stage`, scales = "free") + 
   theme_bw(base_size = 22) + 
-  xlab("\n# of hours passed")+
-  ylab("Concentration (ppm)\n") + 
+  xlab("\n# of minutes passed")+
+  ylab("Concentration (mg/m3)\n") + 
   theme(panel.grid.major.y = element_blank(),
         panel.grid.major.x = element_line(color = "snow2"),
         strip.background = element_blank(),
@@ -633,7 +557,20 @@ ggplot(measurement_w_log %>%
         text = element_text(family = "Arial"),
         plot.margin = margin(1,1,1.5,1.2, "cm")
   ) + 
-  guides(colour = guide_legend(override.aes = list(size=3)))
+  guides(colour = guide_legend(override.aes = list(size=3))) + 
+  ggtitle("")
+
+
+ggsave("brewing stage normalized time series plots.png", width = 18, height = 10, units = "in")
+
+
+
+
+###############################################################################
+# 7. AHz DATA EXPLORING  #########################################
+###############################################################################
+
+
 
 # 
 # measurement_w_log %>% 
@@ -665,11 +602,11 @@ ggplot(brewing_step_comp %>%
 brewing_measurement_data %>% 
   select(date, hour, minute, metric, result, location, sampling_status) %>% 
   pivot_wider(names_from = metric, values_from = result) %>% 
-  filter(!is.na(`PM2.5 (ppm)`) & !(is.na(`PM10 (ppm)`))) %>% 
+  filter(!is.na(`PM2.5 (mg/m3)`) & !(is.na(`PM10 (mg/m3)`))) %>% 
   # group_by(metric) %>% 
-  mutate(PM2.5_quantiles = cut(`PM2.5 (ppm)`, breaks = c(quantile(`PM2.5 (ppm)`, probs = seq(0,1, by = 0.25))),
+  mutate(PM2.5_quantiles = cut(`PM2.5 (mg/m3)`, breaks = c(quantile(`PM2.5 (mg/m3)`, probs = seq(0,1, by = 0.25))),
                          labels = c(1:4), include.lowest = TRUE, right = FALSE),
-         PM10_quantiles = cut(`PM10 (ppm)`, breaks = c(quantile(`PM10 (ppm)`, probs = seq(0,1, by = 0.25))),
+         PM10_quantiles = cut(`PM10 (mg/m3)`, breaks = c(quantile(`PM10 (mg/m3)`, probs = seq(0,1, by = 0.25))),
                                labels = c(1:4), include.lowest = TRUE, right = FALSE)) %>% 
   pivot_longer(names_to = "PM", values_to = "quantile", PM2.5_quantiles:PM10_quantiles) %>% 
 ggplot(aes(x = as.character(quantile), y = `Temperature (F)`)) + 
@@ -678,7 +615,7 @@ ggplot(aes(x = as.character(quantile), y = `Temperature (F)`)) +
 
 
 
-
+#### SPEARMAN CORRS
 
 
 
@@ -689,10 +626,55 @@ get_upper_tri <- function(cormat){
 
 
 
-brewing_bp_corr <- brewing_measurement_data %>% 
-  filter(location == "Brew Pit") %>% 
-  select(-file_name) %>% 
-  pivot_wider(names_from = "metric", values_from = "result") 
+brewing_bp_corr_wfl <- measurement_w_log_wide %>% 
+  #select(date_time:sampling_status, )
+  # select(-file_name, -samp_key, -c(`Start Time (0:00 - 23:5)`:samp_stage_label)) %>% 
+  pivot_wider(names_from = "metric", values_from = "result") %>% 
+  #filter(location == "Brew Pit") %>% 
+  filter(sampling_status == "Brewing") %>% 
+  mutate(date = as.character(date))
+
+cor.matrix_bp <- cor(brewing_bp_corr_wfl[,19:23], method = "spearman",
+                     use = "pairwise.complete.obs")
+
+reshape2::melt(get_upper_tri(cor.matrix_bp)) %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) +
+  geom_tile() +
+  geom_text(aes(label = round(value,2))) +
+  scale_fill_gradient2(limit = c(-1,1), breaks = c(-1, -.75 ,-.5, -.25, 0, .25,.5, .75, 1),
+                       low = "#29af7f", high =  "#b8de29", mid = "white",
+                       name = "Cor value") +
+  scale_x_discrete(position = "top") +
+  theme(panel.background = element_rect(fill = "white"),
+        axis.text.y = element_text(size=12),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14),
+        legend.text = element_text(size=12)) +
+  xlab("")+
+  ylab("") + 
+  ggtitle("Spearman Corr Brew Pit")
+
+cor.test(brewing_bp_corr_wfl$`PM2.5 (mg/m3)`, brewing_bp_corr_wfl$`Temperature (F)`,  method="spearman")
+
+corr.test(brewing_bp_corr_wfl$`PM10 (mg/m3)`, brewing_bp_corr_wfl$`Temperature (F)`, method = "spearman")
+
+
+ggpubr::ggscatter(brewing_bp_corr_wfl, x = "PM10 (mg/m3)", y = "Temperature (F)", 
+                  color = as.character("date"), scales = "free", 
+                  add = "reg.line", conf.int = TRUE, 
+                  cor.coef = TRUE, cor.method = "spearman",
+                  xlab = "PM2.5", ylab = "Temperature")
+
+# Hmisc::rcorr(as.matrix(brewing_bp_corr_wfl[,19:23]), type="spearman")
+
+
+brewing_bp_corr_wfl %>% 
+  filter(is.na(`PM2.5 (mg/m3)`)) %>% 
+  View()
+# brewing_bp_corr <- brewing_measurement_data %>% 
+#   filter(location == "Brew Pit") %>% 
+#   select(-file_name) %>% 
+#   pivot_wider(names_from = "metric", values_from = "result") 
 
 
 cor.matrix_bp <- cor(brewing_bp_corr[,11:15], method = "spearman",
@@ -790,7 +772,7 @@ reshape2::melt(get_upper_tri(cor(all_weather_corr[, 13:19], method = "spearman",
 
 
 
-ggpubr::ggscatter(all_weather_corr, x = "PM2.5 (ppm)", y = "tmpf", 
+ggpubr::ggscatter(all_weather_corr, x = "PM2.5 (mg/m3)", y = "tmpf", 
                    color = as.character("date"), scales = "free", 
                   add = "reg.line", conf.int = TRUE, 
                   cor.coef = TRUE, cor.method = "spearman",
@@ -798,6 +780,52 @@ ggpubr::ggscatter(all_weather_corr, x = "PM2.5 (ppm)", y = "tmpf",
 
 
 ##### GARBAGE <3 ################
+
+###############################################################################
+# <3 GARBAGE <3 <3 <3  #########################################
+###############################################################################
+
+
+
+brewing_step_comp <- measurement_w_log %>% 
+  filter(`Sampling Stage` != "Other") %>% 
+  mutate(samp_stage_test = case_when(!`Sampling Stage` %in% c("10. Boiling", "4. Mashing")  ~ "Other Brewing Step",
+                                     TRUE ~ as.character(`Sampling Stage`)))
+
+
+
+
+gtsummary::tbl_strata(data = brewing_step_comp %>% 
+                        filter(str_detect(metric, "PM")) %>% 
+                        filter(location == "Brew Pit"), 
+                      strata = metric,
+                      .tbl_fun = ~.x %>%
+                        tbl_summary(
+                          by = samp_stage_test, 
+                          digits = everything() ~ 2,
+                          include = c("result"),
+                          type = list("result" ~ 'continuous2'),
+                          statistic = all_continuous() ~ c("{median} ({min} - {max})", 
+                                                           "{mean} ({sd})",
+                                                           "{p90}")), 
+                      .combine_with = "tbl_stack"
+)
+
+
+####### ADD WEATHER DATA ####### 
+
+weather_data <- drive_read_string("https://drive.google.com/file/d/1cJWjM6izcUBZnGsOsLSmYPK63wikAaFU/view?usp=share_link") %>% 
+  read.csv(text = .) %>% 
+  mutate(valid = mdy_hm(valid),
+         date = ymd(str_remove_all(as.character(valid), "\\d*:\\d*:\\d*")),
+         # time = hms(str_extract(as.character(valid), "\\d*:\\d*:\\d*")),
+         hour = hour(hms(str_extract(as.character(valid), "\\d*:\\d*:\\d*"))))
+
+
+measurement_log_weather <- measurement_w_log %>% 
+  left_join(weather_data)
+
+
 
 # ggplot(precision_check_sum) + 
 #   geom_linerange(aes(x = as.character(date), ymin = min, ymax = max, 
@@ -917,3 +945,57 @@ ggpubr::ggscatter(all_weather_corr, x = "PM2.5 (ppm)", y = "tmpf",
 # 
 # 
 # ggsave("PM measurements day 2.png", width = 18, height = 10, units = "in")
+# 
+# 
+# 
+# 
+#redo power calc
+# power_calc_update <- brewing_measurement_data %>% 
+#   filter(str_detect(metric, "PM")) %>% 
+#   group_by(location, date, metric) %>% 
+#   summarize(mean_PM = mean(result),
+#             PM_90 = quantile(result, .9), 
+#             sd_PM = sd(result)) %>% 
+#   bind_rows(brewing_measurement_data %>% 
+#               filter(str_detect(metric, "PM")) %>% 
+#               group_by(location, metric) %>% 
+#               summarize(mean_PM = mean(result),
+#                         PM_90 = quantile(result, .9), 
+#                         sd_PM = sd(result))) %>% 
+#   bind_rows(brewing_measurement_data %>% 
+#               filter(str_detect(metric, "PM")) %>% 
+#               group_by(metric) %>% 
+#               summarize(mean_PM = mean(result),
+#                         PM_90 = quantile(result, .9), 
+#                         sd_PM = sd(result))) %>% 
+#   mutate(date = case_when(is.na(date) ~ "All Samples",
+#                           TRUE ~ as.character(date))) %>% 
+#   mutate(#sample_size_needed = ((1.96+.842)/((mean_PM-(mean_PM*0.7))/(sd_PM)))^2,
+#     samp_size_needed = (((1.96+0.842)^2)*2*sd_PM^2)/((mean_PM-mean_PM*0.6)^2),
+#     hours_needed = (samp_size_needed*15)/60) %>% 
+#   filter(date == "All Samples") %>% 
+#   left_join(brewing_measurement_data %>% 
+#               group_by(date, metric, location) %>% 
+#               summarize(sampling_time = as.duration(interval(start = min(date_time), end = max(date_time)))) %>% 
+#               group_by(metric, location) %>% 
+#               summarize(min_collected = (sum(sampling_time)/60),
+#                         samples_collected = min_collected/15, 
+#                         hours_collected = min_collected/60)
+#   ) 
+# 
+# 
+# #roughly how many hours of sampling do we have? or how many 15 min samples? 
+# brewing_measurement_data %>% 
+#   group_by(date, metric, location) %>% 
+#   summarize(sampling_time = as.duration(interval(start = min(date_time), end = max(date_time)))) %>% 
+#   group_by(metric, location) %>% 
+#   summarize(sum_hrs = (sum(sampling_time)/60)/60,
+#             n_samples_collected = (sum(sampling_time)/60)/15)
+# 
+# 
+# power_calc_update %>% 
+#   ungroup() %>% 
+#   mutate(`Mean (SD)` = paste0(round(mean_PM, 4), " (", round(sd_PM, 4), ")")) %>% 
+#   select(location, metric, `Mean (SD)`, hours_needed, hours_collected) %>% 
+#   flextable::flextable()
+# 
