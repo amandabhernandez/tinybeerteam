@@ -32,11 +32,11 @@ dashboardPage(
                          menuSubItem("PM",
                                      tabName = "pm"))
                 ),
-    sidebarMenu(menuItem("Study Design", tabname = "study_design", icon = icon("users"), startExpanded = FALSE,
-                         menuSubItem("Power Calculations",
-                                     tabName = "pwr")
-                         )
-    ),
+    # sidebarMenu(menuItem("Study Design", tabname = "study_design", icon = icon("users"), startExpanded = FALSE,
+    #                      menuSubItem("Power Calculations",
+    #                                  tabName = "pwr")
+    #                      )
+    # ),
     br(),
     sidebarMenu(menuItem("Source code", 
                          icon = icon("github"), 

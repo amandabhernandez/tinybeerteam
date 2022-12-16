@@ -66,18 +66,18 @@ shinyServer(function(input, output) {
       air_plot <- ggplot(plot_dat %>% 
                            mutate(`Hours Passed` = round(rec_num, 2),
                                   `Concentration Measured` = round(Result, 2)) %>% 
-                           highlight_key( ~intervention, "Intervention"), 
+                           highlight_key( ~date, "Date"), 
                          aes(x = rec_num, y = Result, 
                              color = as.character(date),
                              label4 = date,
                              label = `Sampling Status`,
                              label2 = `Hours Passed`,
-                             label3 = `Concentration Measured`,
-                             alpha = intervention
+                             label3 = `Concentration Measured`#,
+                              #alpha = as.character(date)
                          )) +
-        geom_line() + 
+        geom_line(show.legend = FALSE) + 
         viridis::scale_color_viridis(discrete = TRUE, end = 0.75, name = "Date") +
-        scale_alpha_manual(values = c(0.75, 1))+
+        #scale_alpha_manual(values = c(0.75, 1))+
         #scale_linetype_manual(values=c("dotted", "solid"))+
         facet_grid(metric~location, scales = "free") +
         ggthemes::theme_pander() +
@@ -149,7 +149,7 @@ shinyServer(function(input, output) {
       facet_wrap(~metric, ncol = 1, scales = "free_y") +
       ggthemes::theme_pander() +
       xlab("Time")+
-      ylab("Concentration (ppm)") +
+      ylab("Concentration (mg/m3)") +
       theme(legend.position = "none",
             panel.grid.major.y = element_blank(),
             panel.grid.major.x = element_line(color = "snow2"),
@@ -181,7 +181,7 @@ shinyServer(function(input, output) {
     
   })
   output$pm_density <- renderPlotly({
-    dens_plotly(sampling_date_dat() %>% filter(str_detect(metric, "PM")), c("PM2.5 (ppm)", "PM10 (ppm)"))
+    dens_plotly(sampling_date_dat() %>% filter(str_detect(metric, "PM")), c("PM2.5 (mg/m3)", "PM10 (mg/m3)"))
     
   })
   
@@ -270,7 +270,7 @@ shinyServer(function(input, output) {
   output$pm_boxplot_all <- renderPlotly({
     pm_box <- all_dat_avg %>% 
       filter(`Sampling Status` == "Brewing") %>% 
-      filter(intervention == "Normal Brewing") %>% 
+      #filter(intervention == "Normal Brewing") %>% 
       filter(str_detect(metric, "PM")) %>% 
       ggplot() + 
       geom_boxplot(aes(x = location, y = Result, fill = location)) + 
@@ -286,7 +286,7 @@ shinyServer(function(input, output) {
   output$pm_density_all <- renderPlotly({
     ggplot(all_dat_avg %>% 
              filter(`Sampling Status` == "Brewing") %>%
-             filter(intervention == "Normal Brewing") %>% 
+             #filter(intervention == "Normal Brewing") %>% 
              filter(str_detect(metric, "PM")) 
              , aes(x = Result)) +
       geom_histogram(aes(y = ..density..),

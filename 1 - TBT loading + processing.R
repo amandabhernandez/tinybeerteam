@@ -658,6 +658,7 @@ ggplot(brewing_step_comp %>%
   scale_color_brewer(palette = "Set2") + 
   # scale_color_viridis_d(begin = 0.25, end = 0.75, option = "magma") + 
   facet_grid(metric~location, scales = "free_y") + 
+  xlab("Brewing Stage") + 
   theme_bw()
 
 
