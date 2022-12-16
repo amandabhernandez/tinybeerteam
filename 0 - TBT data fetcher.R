@@ -143,8 +143,8 @@ for (i in seq(1:length(tbt_data_files$id))){
 all_dat <- bind_rows(data_files_list, .id = "file_name") %>%
   mutate(location = case_when(str_detect(file_name, "bp") ~ "Brew Pit",
                               str_detect(file_name, "tap") ~ "Taproom"),
-         metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (ppm)",
-                            str_detect(file_name, "pm10") ~ "PM10 (ppm)",
+         metric = case_when(str_detect(file_name, "pm2") ~ "PM2.5 (mg/m3)",
+                            str_detect(file_name, "pm10") ~ "PM10 (mg/m3)",
                             TRUE ~ metric))
 
 
@@ -210,11 +210,13 @@ all_dat_avg <- all_dat %>%
                           TRUE ~ "no")) %>% 
   filter(keep == "yes") %>% 
   select(-samp_interval, -keep) %>% 
+  clean_names() %>% 
   mutate(intervention = case_when(as.character(date) %in% c("2022-11-03", "2022-11-08", 
                                                             "2022-11-09", "2022-11-17", "2022-11-21") ~ "Normal Brewing",
                                   as.character(date) %in% c("2022-11-18") ~ "Portable Air Cleaner", 
-                                  TRUE ~ "Normal Brewing")) %>%
-  clean_names()
+                                  TRUE ~ "Normal Brewing"),
+         sampling_status = factor(sampling_status, levels = c("Precision Check", "Background Run", "Brewing")))
+
 
 
 
@@ -228,6 +230,9 @@ drive_upload(media = "all_measurement_data.rds",
              overwrite = TRUE)
 
 
+all_measurement_data <- all_dat_avg
+save(all_dat_avg, field_log, sample_start_stop, 
+     file = "all_tbt_data_0.RData")
 
 
 
