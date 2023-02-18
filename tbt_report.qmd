@@ -1,0 +1,98 @@
+---
+title: "TBT Report"
+format: 
+  html:
+    fig-height: 5
+    fig-dpi: 300
+    fig-width: 8.8
+    fig-align: center
+    #theme: theme.scss
+server: shiny
+execute: 
+  echo: false
+---
+
+```{r setup, include=FALSE}
+#| echo: false
+library(pacman)
+p_load(tidyverse, shiny, palmerpenguins)
+
+
+all_measurement_data <- readRDS("all_measurement_data_4report.rds")
+
+dust_data <- read_csv("data/dust_long.csv")
+```
+
+
+```{r}
+#| context: server
+
+output$dust_plot <- renderPlot({
+  ggplot(dust_data %>% 
+         filter(metal == input$metal), aes(x = reading_no, y = conc)) + 
+  geom_point() + 
+  geom_errorbar( mapping=aes(x=reading_no, 
+                                         ymin=conc-error, ymax=conc+error), 
+                width=0.2, size=0.2) + 
+  facet_wrap(~metal, scales = "free_y") + 
+  theme_bw()
+})
+
+```
+
+## About the Study
+
+
+## About the Tiny Beer Team
+
+## Overall Study Results
+
+
+### Main Result 1
+PM2.5 and PM10 concentrations were generally higher in the Brew Pit than in the Taproom
+
+### Main Result 2
+
+Median PM2.5 concentrations were elevated during the scooping (0.033mg/m3), and boiling (0.026mg/m3) stages compared to all other stages (median = 0.006-0.014mg/m3).
+```{r}
+selectInput(inputId = 'beer',
+            label = "Beer",
+            choices = c(unique(all_measurement_data$beer_type)))
+
+
+```
+
+## Main Result 3
+PM2.5 and PM10 concentrations varied by beer type (p < 0.001) as well as grain weight (p < 0.001), however, this was likely due to differences in boiling lengths for different beer types as 21% of the variation in log PM2.5 concentrations were explained by the length of boiling on a given day. 
+
+```{r}
+# insert boiling stages plot 
+```
+
+## Background
+
+
+### Particulate Matter
+
+### CO2
+
+```{r}
+# show sampling data by date with the field log merged in 
+
+```
+
+### What's in the dust? 
+
+```{r}
+selectInput(inputId = 'metal',
+            label = "Metal",
+            choices = c("As", "Ca", "Cd", "Co", "Cr", "Fe", "K", "Mn", "Mo", "Ni",
+                 "Pb", "Rb", "Sd", "Sc", "Se", "Sr", "Ti", "Zn", "Zr"))
+```
+
+
+```{r}
+plotOutput('dust_plot')
+
+```
+## Conclusions
